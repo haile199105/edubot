@@ -15,15 +15,28 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 GEMINI_KEY = "AIzaSyDq_ZItv04bA-Nt7T0ycG5Bx1Ox3PMi4lg"
 TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89"
 
-# Setup
-logging.basicConfig(level=logging.INFO)
+# Setup logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Initialize Gemini
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+# ============================================
+# INITIALIZE GEMINI WITH CORRECT MODEL
+# ============================================
+try:
+    genai.configure(api_key=GEMINI_KEY)
+    # USING CORRECT MODEL NAME - gemini-2.5-flash (Active as of March 2026)
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    logger.info("✅ Gemini AI initialized successfully with gemini-2.5-flash")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize Gemini: {e}")
+    model = None
 
-# ============ SUPABASE FUNCTIONS (Using requests) ============
+# ============================================
+# SUPABASE FUNCTIONS (Using requests)
+# ============================================
 
 def supabase_request(endpoint, method="GET", data=None):
     """Make a request to Supabase REST API"""
@@ -169,7 +182,9 @@ def get_books():
         logger.error(f"Get books error: {e}")
         return "Error fetching books"
 
-# ============ TELEGRAM HANDLERS ============
+# ============================================
+# TELEGRAM HANDLERS
+# ============================================
 
 async def start(update: Update, context):
     user = update.effective_user
@@ -221,30 +236,92 @@ async def books(update: Update, context):
     await update.message.reply_text(books_text, parse_mode='Markdown')
 
 async def ask(update: Update, context):
+    """Handle /ask command with Gemini AI"""
     if not context.args:
         await update.message.reply_text(
-            "Example: `/ask What is photosynthesis?`",
+            "🤖 *Ask me anything!*\n\n"
+            "Examples:\n"
+            "/ask What is photosynthesis?\n"
+            "/ask Explain quantum physics simply\n"
+            "/ask What is the meaning of life?",
             parse_mode='Markdown'
         )
         return
     
     question = ' '.join(context.args)
-    await update.message.reply_text("🤔 Thinking...")
+    
+    # Send thinking message
+    thinking_msg = await update.message.reply_text("🤔 Thinking...")
+    
+    # Check if Gemini is available
+    if model is None:
+        await thinking_msg.edit_text(
+            "⚠️ AI service is not configured. Please contact the bot administrator."
+        )
+        return
+    
     try:
+        # Generate response from Gemini
         response = model.generate_content(question)
-        await update.message.reply_text(f"💡 *Answer*\n\n{response.text}", parse_mode='Markdown')
+        
+        if response and response.text:
+            # Truncate if too long (Telegram limit is 4096)
+            answer_text = response.text
+            if len(answer_text) > 4000:
+                answer_text = answer_text[:4000] + "..."
+            
+            await thinking_msg.edit_text(
+                f"💡 *Answer to:* {question[:50]}...\n\n{answer_text}",
+                parse_mode='Markdown'
+            )
+            logger.info(f"Gemini answered: {question[:50]}...")
+        else:
+            await thinking_msg.edit_text(
+                "⚠️ Sorry, I couldn't generate an answer. Please try a different question."
+            )
+            
     except Exception as e:
         logger.error(f"Gemini error: {e}")
-        await update.message.reply_text("⚠️ AI busy. Try again in a moment.")
+        error_msg = str(e).lower()
+        
+        if "quota" in error_msg or "rate" in error_msg:
+            await thinking_msg.edit_text(
+                "⚠️ AI service is busy right now. Please wait a minute and try again."
+            )
+        elif "safety" in error_msg:
+            await thinking_msg.edit_text(
+                "⚠️ I can't answer that question due to safety guidelines. Please ask something else."
+            )
+        elif "model" in error_msg and "not found" in error_msg:
+            await thinking_msg.edit_text(
+                "⚠️ AI model configuration error. Please contact the bot administrator."
+            )
+        else:
+            await thinking_msg.edit_text(
+                "⚠️ AI service error. Please try again in a moment.\n\n"
+                f"Error: {str(e)[:100]}"
+            )
 
 async def error_handler(update: Update, context):
+    """Handle errors gracefully"""
     logger.error(f"Error: {context.error}")
+    if update and update.effective_message:
+        await update.effective_message.reply_text(
+            "⚠️ Something went wrong. Please try again or use /start to restart."
+        )
 
-# ============ MAIN ============
+# ============================================
+# MAIN FUNCTION
+# ============================================
 
 def main():
     print("=" * 50)
     print("🤖 EduBot Starting on Railway...")
+    print("=" * 50)
+    print(f"Bot Token: {'✅ Valid' if BOT_TOKEN else '❌ Missing'}")
+    print(f"Gemini Key: {'✅ Valid' if GEMINI_KEY else '❌ Missing'}")
+    print(f"Supabase: {'✅ Connected' if SUPABASE_URL else '❌ Missing'}")
+    print(f"Teacher ID: {'✅ Set' if TEACHER_ID else '❌ Missing'}")
     print("=" * 50)
     
     # Create application
@@ -260,12 +337,12 @@ def main():
     app.add_handler(CommandHandler("ask", ask))
     app.add_error_handler(error_handler)
     
-    # Use polling mode (simpler, works on Railway)
+    # Start polling mode
     print("🔄 Starting bot in POLLING mode")
-    print("✅ Bot is running! Waiting for messages...")
+    print("✅ EduBot is running! Waiting for messages...")
     print("=" * 50)
     
-    # Start polling (no webhook needed)
+    # Run the bot
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
