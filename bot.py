@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 import google.generativeai as genai
 import requests
 
@@ -12,8 +12,7 @@ import requests
 BOT_TOKEN = "8755788296:AAEpumtdZTyIfvKGrl_tn6C2MleogO1LyKA"
 SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE"
-import os
-GEMINI_KEY = os.environ.get("GEMINI_KEY", "")
+GEMINI_KEY = "AIzaSyCaKyuaXxNcQ18xtvFwA69Gf4OyIX5gz04"
 TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89"
 
 # Setup logging
@@ -54,18 +53,13 @@ def supabase_request(endpoint, method="GET", data=None):
         logger.error(f"Request error: {e}")
         return []
 
-def authenticate_teacher(telegram_id, password):
-    """Authenticate teacher using Telegram ID and password"""
-    try:
-        # Check if teacher exists with this telegram_id
-        result = supabase_request(f"teachers?telegram_id=eq.{telegram_id}&select=id,name,email")
-        if result and len(result) > 0:
-            teacher_sessions[telegram_id] = result[0]["id"]
-            return True, result[0]
-        return False, None
-    except Exception as e:
-        logger.error(f"Auth error: {e}")
-        return False, None
+def authenticate_teacher(telegram_id, pin):
+    """Authenticate teacher using PIN"""
+    # For now, using simple PIN check
+    if pin == "123456":
+        teacher_sessions[telegram_id] = TEACHER_ID
+        return True
+    return False
 
 def is_teacher(telegram_id):
     """Check if user is logged in as teacher"""
@@ -167,7 +161,6 @@ def get_books():
 # ============ TEACHER FUNCTIONS ============
 
 def add_note(title, subject, content, note_date):
-    """Add a new note (teacher only)"""
     data = {
         "teacher_id": TEACHER_ID,
         "title": title,
@@ -179,7 +172,6 @@ def add_note(title, subject, content, note_date):
     return supabase_request("daily_notes", "POST", data)
 
 def add_question(question_text, answer, subject, difficulty):
-    """Add a new question (teacher only)"""
     data = {
         "teacher_id": TEACHER_ID,
         "question_text": question_text,
@@ -191,7 +183,6 @@ def add_question(question_text, answer, subject, difficulty):
     return supabase_request("questions", "POST", data)
 
 def add_book(title, author, subject, description, file_url):
-    """Add a new book (teacher only)"""
     data = {
         "teacher_id": TEACHER_ID,
         "title": title,
@@ -204,7 +195,6 @@ def add_book(title, author, subject, description, file_url):
     return supabase_request("books", "POST", data)
 
 def get_students():
-    """Get all students (teacher only)"""
     return supabase_request(f"students?teacher_id=eq.{TEACHER_ID}&select=first_name,username,telegram_id,joined_at")
 
 # ============ TELEGRAM HANDLERS ============
@@ -217,7 +207,7 @@ async def start(update: Update, context):
         await update.message.reply_text(
             "👨‍🏫 *Teacher Login*\n\n"
             "Please enter your 6-digit PIN to access teacher panel.\n\n"
-            "Contact your administrator for your PIN.",
+            "PIN: 123456",
             parse_mode='Markdown'
         )
         context.user_data['awaiting_pin'] = True
@@ -251,18 +241,26 @@ async def handle_message(update: Update, context):
     # Check if awaiting teacher PIN
     if context.user_data.get('awaiting_pin'):
         pin = text.strip()
-        # For now, using a simple PIN (you can change this)
         if pin == "123456":
             teacher_sessions[user.id] = TEACHER_ID
             context.user_data['awaiting_pin'] = False
             context.user_data['is_teacher'] = True
             await show_teacher_panel(update)
         else:
-            await update.message.reply_text("❌ Invalid PIN. Please try again or /start to cancel.")
+            await update.message.reply_text("❌ Invalid PIN. Please try again or type /start to cancel.")
         return
     
-    # Regular message handling
-    await update.message.reply_text("Please use the buttons below or type /start")
+    # Check if user is teacher and typing commands
+    if is_teacher(user.id):
+        if text.startswith('/add_note'):
+            # Handle add note command
+            await update.message.reply_text("Use the dashboard to add notes: https://your-dashboard.vercel.app")
+        elif text.startswith('/add_question'):
+            await update.message.reply_text("Use the dashboard to add questions.")
+        else:
+            await update.message.reply_text("Use /start teacher to access teacher panel, or /start for student mode.")
+    else:
+        await update.message.reply_text("Please use the buttons below or type /start")
 
 async def button_callback(update: Update, context):
     query = update.callback_query
@@ -297,21 +295,29 @@ async def button_callback(update: Update, context):
             await show_teacher_panel(query)
         else:
             await query.message.reply_text("❌ You are not authorized. Use /start teacher to login.")
+    
+    elif action == "logout":
+        if query.from_user.id in teacher_sessions:
+            del teacher_sessions[query.from_user.id]
+        context.user_data.clear()
+        await query.message.reply_text("✅ Logged out. Send /start to continue as student.")
 
 async def show_teacher_panel(update):
     """Show teacher panel with options"""
     keyboard = [
-        [InlineKeyboardButton("📝 Add Daily Note", callback_data="add_note")],
-        [InlineKeyboardButton("❓ Add Question", callback_data="add_question")],
-        [InlineKeyboardButton("📚 Add Book", callback_data="add_book")],
+        [InlineKeyboardButton("📝 Add Daily Note", callback_data="add_note_web")],
+        [InlineKeyboardButton("❓ Add Question", callback_data="add_question_web")],
+        [InlineKeyboardButton("📚 Add Book", callback_data="add_book_web")],
         [InlineKeyboardButton("👨‍🎓 View Students", callback_data="view_students")],
-        [InlineKeyboardButton("📊 View Stats", callback_data="view_stats")],
         [InlineKeyboardButton("🔓 Logout", callback_data="logout")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        "👨‍🏫 *Teacher Panel*\n\nWhat would you like to do?",
+        "👨‍🏫 *Teacher Panel*\n\n"
+        "📊 Use web dashboard for full control:\n"
+        "https://edubot-dashboard.vercel.app\n\n"
+        "Or use buttons below:",
         parse_mode='Markdown',
         reply_markup=reply_markup
     )
@@ -338,6 +344,17 @@ async def ask(update: Update, context):
     except Exception as e:
         await thinking.edit_text(f"⚠️ Error: {str(e)[:100]}")
 
+async def answer_command(update: Update, context):
+    if not context.args:
+        await update.message.reply_text("Example: `/answer 1`", parse_mode='Markdown')
+        return
+    try:
+        num = int(context.args[0])
+        ans = get_answer(num)
+        await update.message.reply_text(ans, parse_mode='Markdown')
+    except:
+        await update.message.reply_text("Please provide a valid number.")
+
 async def error_handler(update: Update, context):
     logger.error(f"Error: {context.error}")
 
@@ -350,14 +367,26 @@ def main():
     
     app = Application.builder().token(BOT_TOKEN).build()
     
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ask", ask))
-    app.add_handler(MessageHandler(None, handle_message))
+    app.add_handler(CommandHandler("answer", answer_command))
+    
+    # Message handler (for PIN input)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Callback handler for buttons
     app.add_handler(CallbackQueryHandler(button_callback))
+    
+    # Error handler
     app.add_error_handler(error_handler)
     
     print("✅ EduBot is running!")
-    app.run_polling()
+    print("Commands: /start, /ask, /answer")
+    print("Teacher login: /start teacher (PIN: 123456)")
+    print("=" * 50)
+    
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
