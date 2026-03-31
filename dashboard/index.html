@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduBot Dashboard - Login</title>
+    <title>EduBot Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -162,7 +162,23 @@
             border-radius: 10px;
             color: white;
         }
-        .badge-success { background: #22c55e20; color: #22c55e; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; }
+        
+        .status-connected {
+            background: #22c55e20;
+            color: #22c55e;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            display: inline-block;
+        }
+        .status-error {
+            background: #ef444420;
+            color: #ef4444;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            display: inline-block;
+        }
         
         @media (max-width: 768px) {
             .stats { grid-template-columns: repeat(2, 1fr); }
@@ -177,6 +193,10 @@
     <div class="login-card">
         <h1>🎓 EduBot Dashboard</h1>
         <p>Sign in to manage your bot</p>
+        
+        <div style="text-align: center; margin-bottom: 15px;">
+            <span id="supabaseStatus" class="status-error">Checking Supabase...</span>
+        </div>
         
         <select id="role">
             <option value="teacher">👨‍🏫 Teacher</option>
@@ -197,6 +217,7 @@
         <div class="header">
             <h1>🎓 EduBot Dashboard</h1>
             <p>Welcome, <span id="userName">Teacher</span>!</p>
+            <p><span id="dbStatus" class="status-connected">Connected to Supabase</span></p>
             <button onclick="logout()" style="background: #ef4444; margin-top: 10px;">🚪 Logout</button>
         </div>
         
@@ -209,7 +230,9 @@
         </div>
         
         <div id="analytics" class="page">
-            <div class="stats" id="stats"></div>
+            <div class="stats" id="stats">
+                <div class="stat-card"><h3>Loading...</h3><div class="value">—</div></div>
+            </div>
         </div>
         
         <div id="notes" class="page" style="display:none">
@@ -218,7 +241,7 @@
                     <h2>📝 Daily Notes</h2>
                     <button onclick="openNoteModal()">+ Add Note</button>
                 </div>
-                <div id="notesTable"></div>
+                <div id="notesTable">Loading...</div>
             </div>
         </div>
         
@@ -228,7 +251,7 @@
                     <h2>❓ Questions</h2>
                     <button onclick="openQuestionModal()">+ Add Question</button>
                 </div>
-                <div id="questionsTable"></div>
+                <div id="questionsTable">Loading...</div>
             </div>
         </div>
         
@@ -238,14 +261,14 @@
                     <h2>📚 Books</h2>
                     <button onclick="openBookModal()">+ Add Book</button>
                 </div>
-                <div id="booksTable"></div>
+                <div id="booksTable">Loading...</div>
             </div>
         </div>
         
         <div id="students" class="page" style="display:none">
             <div class="card">
                 <h2>👨‍🎓 Students</h2>
-                <div id="studentsTable"></div>
+                <div id="studentsTable">Loading...</div>
             </div>
         </div>
     </div>
@@ -294,16 +317,47 @@
 </div>
 
 <script>
+// ============================================
+// SUPABASE CONNECTION - YOUR CREDENTIALS
+// ============================================
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
 const VALID_TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
 const TEACHER_PIN = "123456";
+const ADMIN_PASSWORD = "admin123";
 
 let currentTeacherId = null;
 
+// Test Supabase Connection
+async function testSupabaseConnection() {
+    try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/teachers?select=id&limit=1`, {
+            headers: {
+                "apikey": SUPABASE_KEY,
+                "Authorization": `Bearer ${SUPABASE_KEY}`
+            }
+        });
+        
+        if (response.ok) {
+            document.getElementById('supabaseStatus').innerHTML = '✅ Supabase Connected';
+            document.getElementById('supabaseStatus').className = 'status-connected';
+            console.log('Supabase connection successful');
+        } else {
+            document.getElementById('supabaseStatus').innerHTML = '❌ Supabase Connection Failed';
+            document.getElementById('supabaseStatus').className = 'status-error';
+            console.error('Supabase connection failed:', response.status);
+        }
+    } catch (error) {
+        document.getElementById('supabaseStatus').innerHTML = '❌ Cannot reach Supabase';
+        document.getElementById('supabaseStatus').className = 'status-error';
+        console.error('Supabase error:', error);
+    }
+}
+
+// API function
 async function api(path, options = {}) {
     const url = `${SUPABASE_URL}/rest/v1/${path}`;
-    const res = await fetch(url, {
+    const response = await fetch(url, {
         headers: {
             "apikey": SUPABASE_KEY,
             "Authorization": `Bearer ${SUPABASE_KEY}`,
@@ -311,12 +365,18 @@ async function api(path, options = {}) {
         },
         ...options
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
     if (options.method === "DELETE") return null;
-    return res.json();
+    if (response.status === 204) return [];
+    return response.json();
 }
 
-function login() {
+// Login function
+async function login() {
     const role = document.getElementById('role').value;
     const teacherId = document.getElementById('teacherId').value;
     const password = document.getElementById('password').value;
@@ -328,27 +388,19 @@ function login() {
             document.getElementById('userName').textContent = 'Haileyesus (Teacher)';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('appPage').style.display = 'block';
-            loadAnalytics();
-            loadNotes();
-            loadQuestions();
-            loadBooks();
-            loadStudents();
+            await loadAllData();
             errorDiv.style.display = 'none';
         } else {
             errorDiv.textContent = 'Invalid Teacher ID or PIN';
             errorDiv.style.display = 'block';
         }
     } else if (role === 'admin') {
-        if (password === 'admin123') {
+        if (password === ADMIN_PASSWORD) {
             currentTeacherId = VALID_TEACHER_ID;
             document.getElementById('userName').textContent = 'Super Admin';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('appPage').style.display = 'block';
-            loadAnalytics();
-            loadNotes();
-            loadQuestions();
-            loadBooks();
-            loadStudents();
+            await loadAllData();
             errorDiv.style.display = 'none';
         } else {
             errorDiv.textContent = 'Invalid Admin Password';
@@ -365,6 +417,14 @@ function logout() {
     document.getElementById('password').value = '';
 }
 
+async function loadAllData() {
+    await loadAnalytics();
+    await loadNotes();
+    await loadQuestions();
+    await loadBooks();
+    await loadStudents();
+}
+
 async function loadAnalytics() {
     try {
         const [students, notes, questions, books] = await Promise.all([
@@ -373,73 +433,129 @@ async function loadAnalytics() {
             api(`questions?teacher_id=eq.${VALID_TEACHER_ID}&select=id`),
             api(`books?teacher_id=eq.${VALID_TEACHER_ID}&select=id`)
         ]);
+        
         document.getElementById('stats').innerHTML = `
-            <div class="stat-card"><h3>Students</h3><div class="value">${students.length}</div></div>
-            <div class="stat-card"><h3>Notes</h3><div class="value">${notes.length}</div></div>
-            <div class="stat-card"><h3>Questions</h3><div class="value">${questions.length}</div></div>
-            <div class="stat-card"><h3>Books</h3><div class="value">${books.length}</div></div>
+            <div class="stat-card"><h3>Total Students</h3><div class="value">${students.length || 0}</div></div>
+            <div class="stat-card"><h3>Total Notes</h3><div class="value">${notes.length || 0}</div></div>
+            <div class="stat-card"><h3>Questions</h3><div class="value">${questions.length || 0}</div></div>
+            <div class="stat-card"><h3>Books</h3><div class="value">${books.length || 0}</div></div>
         `;
-    } catch(e) { console.error(e); }
+    } catch(error) {
+        console.error('Analytics error:', error);
+        document.getElementById('stats').innerHTML = '<div class="stat-card"><h3>Error loading data</h3><div class="value">—</div></div>';
+    }
 }
 
 async function loadNotes() {
     try {
         const notes = await api(`daily_notes?teacher_id=eq.${VALID_TEACHER_ID}&order=note_date.desc`);
-        if (notes.length) {
+        if (notes && notes.length > 0) {
             document.getElementById('notesTable').innerHTML = `
-                <table><thead><tr><th>Date</th><th>Title</th><th>Subject</th><th>Actions</th></tr></thead><tbody>
-                ${notes.map(n => `<tr><td>${n.note_date}</td><td>${n.title}</td><td>${n.subject || '-'}</td><td><button class="btn-small" onclick="deleteNote('${n.id}')">Delete</button></td></tr>`).join('')}
-                </tbody></table>
+                <table>
+                    <thead><tr><th>Date</th><th>Title</th><th>Subject</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        ${notes.map(n => `
+                            <tr>
+                                <td>${n.note_date}</td>
+                                <td><strong>${escapeHtml(n.title)}</strong></td>
+                                <td>${escapeHtml(n.subject || '-')}</td>
+                                <td><button class="btn-small" onclick="deleteNote('${n.id}')">🗑 Delete</button></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             `;
         } else {
-            document.getElementById('notesTable').innerHTML = '<p>No notes yet</p>';
+            document.getElementById('notesTable').innerHTML = '<p style="text-align:center;padding:40px;">📭 No notes yet. Add your first note!</p>';
         }
-    } catch(e) { console.error(e); }
+    } catch(error) {
+        console.error('Notes error:', error);
+        document.getElementById('notesTable').innerHTML = '<p style="color:#ef4444;">Error loading notes. Check Supabase connection.</p>';
+    }
 }
 
 async function loadQuestions() {
     try {
-        const questions = await api(`questions?teacher_id=eq.${VALID_TEACHER_ID}`);
-        if (questions.length) {
+        const questions = await api(`questions?teacher_id=eq.${VALID_TEACHER_ID}&order=created_at.desc`);
+        if (questions && questions.length > 0) {
             document.getElementById('questionsTable').innerHTML = `
-                <table><thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead><tbody>
-                ${questions.map(q => `<tr><td>${q.question_text.substring(0, 50)}...</td><td>${q.subject || '-'}</td><td>${q.difficulty}</td><td><button class="btn-small" onclick="deleteQuestion('${q.id}')">Delete</button></td></tr>`).join('')}
-                </tbody></table>
+                <table>
+                    <thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        ${questions.map(q => `
+                            <tr>
+                                <td>${escapeHtml(q.question_text.substring(0, 60))}...</td>
+                                <td>${escapeHtml(q.subject || '-')}</td>
+                                <td>${escapeHtml(q.difficulty || 'medium')}</td>
+                                <td><button class="btn-small" onclick="deleteQuestion('${q.id}')">🗑 Delete</button></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             `;
         } else {
-            document.getElementById('questionsTable').innerHTML = '<p>No questions yet</p>';
+            document.getElementById('questionsTable').innerHTML = '<p style="text-align:center;padding:40px;">❓ No questions yet. Add your first question!</p>';
         }
-    } catch(e) { console.error(e); }
+    } catch(error) {
+        console.error('Questions error:', error);
+        document.getElementById('questionsTable').innerHTML = '<p style="color:#ef4444;">Error loading questions.</p>';
+    }
 }
 
 async function loadBooks() {
     try {
         const books = await api(`books?teacher_id=eq.${VALID_TEACHER_ID}`);
-        if (books.length) {
+        if (books && books.length > 0) {
             document.getElementById('booksTable').innerHTML = `
-                <table><thead><tr><th>Title</th><th>Author</th><th>Subject</th><th>Actions</th></tr></thead><tbody>
-                ${books.map(b => `<tr><td>${b.title}</td><td>${b.author || '-'}</td><td>${b.subject || '-'}</td><td><button class="btn-small" onclick="deleteBook('${b.id}')">Delete</button></td></tr>`).join('')}
-                </tbody></table>
+                <table>
+                    <thead><tr><th>Title</th><th>Author</th><th>Subject</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        ${books.map(b => `
+                            <tr>
+                                <td><strong>${escapeHtml(b.title)}</strong></td>
+                                <td>${escapeHtml(b.author || '-')}</td>
+                                <td>${escapeHtml(b.subject || '-')}</td>
+                                <td><button class="btn-small" onclick="deleteBook('${b.id}')">🗑 Delete</button></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             `;
         } else {
-            document.getElementById('booksTable').innerHTML = '<p>No books yet</p>';
+            document.getElementById('booksTable').innerHTML = '<p style="text-align:center;padding:40px;">📚 No books yet. Add your first book!</p>';
         }
-    } catch(e) { console.error(e); }
+    } catch(error) {
+        console.error('Books error:', error);
+        document.getElementById('booksTable').innerHTML = '<p style="color:#ef4444;">Error loading books.</p>';
+    }
 }
 
 async function loadStudents() {
     try {
-        const students = await api(`students?teacher_id=eq.${VALID_TEACHER_ID}`);
-        if (students.length) {
+        const students = await api(`students?teacher_id=eq.${VALID_TEACHER_ID}&order=joined_at.desc`);
+        if (students && students.length > 0) {
             document.getElementById('studentsTable').innerHTML = `
-                <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead><tbody>
-                ${students.map(s => `<tr><td>${s.first_name || 'Anonymous'}</td><td>@${s.username || '-'}</td><td>${s.telegram_id}</td><td>${new Date(s.joined_at).toLocaleDateString()}</td></tr>`).join('')}
-                </tbody></table>
+                <table>
+                    <thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead>
+                    <tbody>
+                        ${students.map(s => `
+                            <tr>
+                                <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
+                                <td>@${escapeHtml(s.username || '-')}</td>
+                                <td>${s.telegram_id}</td>
+                                <td>${new Date(s.joined_at).toLocaleDateString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             `;
         } else {
-            document.getElementById('studentsTable').innerHTML = '<p>No students yet</p>';
+            document.getElementById('studentsTable').innerHTML = '<p style="text-align:center;padding:40px;">👨‍🎓 No students yet</p>';
         }
-    } catch(e) { console.error(e); }
+    } catch(error) {
+        console.error('Students error:', error);
+        document.getElementById('studentsTable').innerHTML = '<p style="color:#ef4444;">Error loading students.</p>';
+    }
 }
 
 async function saveNote() {
@@ -451,9 +567,21 @@ async function saveNote() {
         content: document.getElementById('noteContent').value,
         is_published: true
     };
-    await api('daily_notes', { method: 'POST', body: JSON.stringify(data) });
-    closeModal('noteModal');
-    loadNotes();
+    
+    if (!data.title || !data.content) {
+        alert('Title and content are required');
+        return;
+    }
+    
+    try {
+        await api('daily_notes', { method: 'POST', body: JSON.stringify(data) });
+        closeModal('noteModal');
+        await loadNotes();
+        await loadAnalytics();
+        alert('Note added successfully!');
+    } catch(error) {
+        alert('Error adding note: ' + error.message);
+    }
 }
 
 async function saveQuestion() {
@@ -465,9 +593,21 @@ async function saveQuestion() {
         difficulty: document.getElementById('questionDifficulty').value,
         is_active: true
     };
-    await api('questions', { method: 'POST', body: JSON.stringify(data) });
-    closeModal('questionModal');
-    loadQuestions();
+    
+    if (!data.question_text || !data.answer) {
+        alert('Question and answer are required');
+        return;
+    }
+    
+    try {
+        await api('questions', { method: 'POST', body: JSON.stringify(data) });
+        closeModal('questionModal');
+        await loadQuestions();
+        await loadAnalytics();
+        alert('Question added successfully!');
+    } catch(error) {
+        alert('Error adding question: ' + error.message);
+    }
 }
 
 async function saveBook() {
@@ -480,32 +620,61 @@ async function saveBook() {
         file_url: document.getElementById('bookFileUrl').value,
         is_active: true
     };
-    await api('books', { method: 'POST', body: JSON.stringify(data) });
-    closeModal('bookModal');
-    loadBooks();
+    
+    if (!data.title) {
+        alert('Title is required');
+        return;
+    }
+    
+    try {
+        await api('books', { method: 'POST', body: JSON.stringify(data) });
+        closeModal('bookModal');
+        await loadBooks();
+        await loadAnalytics();
+        alert('Book added successfully!');
+    } catch(error) {
+        alert('Error adding book: ' + error.message);
+    }
 }
 
 async function deleteNote(id) {
     if (!confirm('Delete this note?')) return;
-    await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' });
-    loadNotes();
+    try {
+        await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' });
+        await loadNotes();
+        await loadAnalytics();
+    } catch(error) {
+        alert('Error deleting note: ' + error.message);
+    }
 }
 
 async function deleteQuestion(id) {
     if (!confirm('Delete this question?')) return;
-    await api(`questions?id=eq.${id}`, { method: 'DELETE' });
-    loadQuestions();
+    try {
+        await api(`questions?id=eq.${id}`, { method: 'DELETE' });
+        await loadQuestions();
+        await loadAnalytics();
+    } catch(error) {
+        alert('Error deleting question: ' + error.message);
+    }
 }
 
 async function deleteBook(id) {
     if (!confirm('Delete this book?')) return;
-    await api(`books?id=eq.${id}`, { method: 'DELETE' });
-    loadBooks();
+    try {
+        await api(`books?id=eq.${id}`, { method: 'DELETE' });
+        await loadBooks();
+        await loadAnalytics();
+    } catch(error) {
+        alert('Error deleting book: ' + error.message);
+    }
 }
 
 function showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(page).style.display = 'block';
+    
+    // Update active button
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
 }
@@ -514,6 +683,19 @@ function openNoteModal() { document.getElementById('noteModal').style.display = 
 function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
 function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// Initialize
+testSupabaseConnection();
 </script>
 </body>
 </html>
