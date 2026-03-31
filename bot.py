@@ -5,7 +5,6 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import google.generativeai as genai
 import requests
-import json
 
 # ============================================
 # YOUR CREDENTIALS - ALREADY FILLED
@@ -45,12 +44,12 @@ def supabase_request(endpoint, method="GET", data=None):
         elif method == "DELETE":
             response = requests.delete(url, headers=headers)
         else:
-            return None
+            return []
         
         if response.status_code in [200, 201, 204]:
             return response.json() if response.content else []
         else:
-            logger.error(f"Supabase error {response.status_code}: {response.text}")
+            logger.error(f"Supabase error {response.status_code}: {response.text[:200]}")
             return []
     except Exception as e:
         logger.error(f"Request error: {e}")
@@ -73,9 +72,11 @@ def save_student(telegram_user):
         if existing and len(existing) > 0:
             # Update existing
             supabase_request(f"students?telegram_id=eq.{telegram_user.id}", "PATCH", data)
+            logger.info(f"Updated student: {telegram_user.id}")
         else:
             # Insert new
             supabase_request("students", "POST", data)
+            logger.info(f"New student saved: {telegram_user.id}")
         return True
     except Exception as e:
         logger.error(f"Save student error: {e}")
@@ -238,18 +239,13 @@ async def ask(update: Update, context):
 
 async def error_handler(update: Update, context):
     logger.error(f"Error: {context.error}")
-    if update and update.effective_message:
-        await update.effective_message.reply_text("⚠️ Something went wrong. Try again.")
 
 # ============ MAIN ============
 
 def main():
-    print("=" * 40)
+    print("=" * 50)
     print("🤖 EduBot Starting on Railway...")
-    print("=" * 40)
-    
-    # Get port from Railway
-    port = int(os.environ.get("PORT", 8080))
+    print("=" * 50)
     
     # Create application
     app = Application.builder().token(BOT_TOKEN).build()
@@ -264,24 +260,13 @@ def main():
     app.add_handler(CommandHandler("ask", ask))
     app.add_error_handler(error_handler)
     
-    # Get Railway URL for webhook
-    railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
+    # Use polling mode (simpler, works on Railway)
+    print("🔄 Starting bot in POLLING mode")
+    print("✅ Bot is running! Waiting for messages...")
+    print("=" * 50)
     
-    if railway_domain:
-        webhook_url = f"https://{railway_domain}/{BOT_TOKEN}"
-        print(f"🚀 Starting webhook mode")
-        print(f"🌐 Webhook URL: {webhook_url}")
-        print(f"📡 Listening on port {port}")
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path=BOT_TOKEN,
-            webhook_url=webhook_url
-        )
-    else:
-        print("🔄 Starting polling mode")
-        print("✅ Bot is running!")
-        app.run_polling()
+    # Start polling (no webhook needed)
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
