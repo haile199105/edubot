@@ -77,6 +77,8 @@
         }
         button:hover { background: #4f46e5; }
         .btn-small { padding: 4px 10px; font-size: 0.75rem; }
+        .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
         .modal {
             display: none;
             position: fixed;
@@ -100,6 +102,21 @@
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
         .error { color: #ef4444; text-align: center; margin-top: 15px; display: none; }
         .success { color: #22c55e; text-align: center; margin-top: 15px; display: none; }
+        .loading { text-align: center; padding: 40px; color: #94a3b8; }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e293b;
+            border-left: 4px solid #6366f1;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 2000;
+            display: none;
+        }
+        .toast.show { display: block; }
+        .toast.success { border-left-color: #22c55e; }
+        .toast.error { border-left-color: #ef4444; }
     </style>
 </head>
 <body>
@@ -114,7 +131,7 @@
             <option value="teacher">👨‍🏫 Teacher</option>
             <option value="admin">🛡️ Super Admin</option>
         </select>
-        <input type="text" id="teacherId" placeholder="Teacher ID">
+        <input type="text" id="teacherId" placeholder="Teacher ID" value="9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89">
         <input type="password" id="password" placeholder="PIN / Password">
         <button onclick="login()">Sign In</button>
         <div id="loginError" class="error"></div>
@@ -138,7 +155,7 @@
     </div>
     
     <div id="analytics" class="page">
-        <div class="stats" id="stats"></div>
+        <div class="stats" id="stats"><div class="loading">Loading...</div></div>
     </div>
     
     <div id="notes" class="page" style="display:none">
@@ -147,7 +164,7 @@
                 <h2>📝 Daily Notes</h2>
                 <button onclick="openNoteModal()">+ Add Note</button>
             </div>
-            <div id="notesTable"></div>
+            <div id="notesTable"><div class="loading">Loading...</div></div>
         </div>
     </div>
     
@@ -157,7 +174,7 @@
                 <h2>❓ Questions</h2>
                 <button onclick="openQuestionModal()">+ Add Question</button>
             </div>
-            <div id="questionsTable"></div>
+            <div id="questionsTable"><div class="loading">Loading...</div></div>
         </div>
     </div>
     
@@ -167,14 +184,14 @@
                 <h2>📚 Books</h2>
                 <button onclick="openBookModal()">+ Add Book</button>
             </div>
-            <div id="booksTable"></div>
+            <div id="booksTable"><div class="loading">Loading...</div></div>
         </div>
     </div>
     
     <div id="students" class="page" style="display:none">
         <div class="card">
             <h2>👨‍🎓 Students</h2>
-            <div id="studentsTable"></div>
+            <div id="studentsTable"><div class="loading">Loading...</div></div>
         </div>
     </div>
 </div>
@@ -186,7 +203,7 @@
         <input type="text" id="noteTitle" placeholder="Title">
         <input type="date" id="noteDate">
         <textarea id="noteContent" rows="5" placeholder="Content..."></textarea>
-        <button onclick="saveNote()">Save</button>
+        <button onclick="saveNote()">Save Note</button>
         <button onclick="closeModal('noteModal')">Cancel</button>
     </div>
 </div>
@@ -196,7 +213,7 @@
         <h3>Add Question</h3>
         <textarea id="questionText" rows="3" placeholder="Question..."></textarea>
         <textarea id="questionAnswer" rows="3" placeholder="Answer..."></textarea>
-        <button onclick="saveQuestion()">Save</button>
+        <button onclick="saveQuestion()">Save Question</button>
         <button onclick="closeModal('questionModal')">Cancel</button>
     </div>
 </div>
@@ -206,10 +223,12 @@
         <h3>Add Book</h3>
         <input type="text" id="bookTitle" placeholder="Title">
         <input type="text" id="bookAuthor" placeholder="Author">
-        <button onclick="saveBook()">Save</button>
+        <button onclick="saveBook()">Save Book</button>
         <button onclick="closeModal('bookModal')">Cancel</button>
     </div>
 </div>
+
+<div id="toast" class="toast"></div>
 
 <script>
 // ============================================
@@ -223,9 +242,19 @@ const ADMIN_PASSWORD = "admin123";
 
 let currentUser = null;
 
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = `toast ${type} show`;
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
 async function api(path, options = {}) {
     const url = `${SUPABASE_URL}/rest/v1/${path}`;
-    const res = await fetch(url, {
+    
+    const response = await fetch(url, {
         headers: {
             "apikey": SUPABASE_KEY,
             "Authorization": `Bearer ${SUPABASE_KEY}`,
@@ -234,13 +263,26 @@ async function api(path, options = {}) {
         ...options
     });
     
-    if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errorText}`);
+    if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+            const errorText = await response.text();
+            if (errorText) errorMessage = errorText;
+        } catch(e) {}
+        throw new Error(errorMessage);
     }
-    if (options.method === "DELETE") return null;
-    if (res.status === 204) return [];
-    return res.json();
+    
+    // For DELETE or empty responses
+    if (options.method === "DELETE" || response.status === 204) {
+        return null;
+    }
+    
+    try {
+        return await response.json();
+    } catch(e) {
+        // Empty response - return empty array
+        return [];
+    }
 }
 
 function login() {
@@ -257,6 +299,7 @@ function login() {
             document.getElementById('appPage').style.display = 'block';
             loadAllData();
             errorDiv.style.display = 'none';
+            showToast('Login successful!', 'success');
         } else {
             errorDiv.textContent = 'Invalid Teacher ID or PIN';
             errorDiv.style.display = 'block';
@@ -269,6 +312,7 @@ function login() {
             document.getElementById('appPage').style.display = 'block';
             loadAllData();
             errorDiv.style.display = 'none';
+            showToast('Login successful!', 'success');
         } else {
             errorDiv.textContent = 'Invalid Admin Password';
             errorDiv.style.display = 'block';
@@ -280,7 +324,7 @@ function logout() {
     currentUser = null;
     document.getElementById('appPage').style.display = 'none';
     document.getElementById('loginPage').style.display = 'block';
-    document.getElementById('teacherId').value = '';
+    document.getElementById('teacherId').value = TEACHER_ID;
     document.getElementById('password').value = '';
 }
 
@@ -301,89 +345,90 @@ async function loadAnalytics() {
             api(`books?teacher_id=eq.${TEACHER_ID}&select=id`)
         ]);
         document.getElementById('stats').innerHTML = `
-            <div class="stat-card"><h3>Students</h3><div class="value">${students.length}</div></div>
-            <div class="stat-card"><h3>Notes</h3><div class="value">${notes.length}</div></div>
-            <div class="stat-card"><h3>Questions</h3><div class="value">${questions.length}</div></div>
-            <div class="stat-card"><h3>Books</h3><div class="value">${books.length}</div></div>
+            <div class="stat-card"><h3>Students</h3><div class="value">${students?.length || 0}</div></div>
+            <div class="stat-card"><h3>Notes</h3><div class="value">${notes?.length || 0}</div></div>
+            <div class="stat-card"><h3>Questions</h3><div class="value">${questions?.length || 0}</div></div>
+            <div class="stat-card"><h3>Books</h3><div class="value">${books?.length || 0}</div></div>
         `;
     } catch(e) {
         console.error('Analytics error:', e);
+        document.getElementById('stats').innerHTML = `<div class="error">Error loading stats: ${e.message}</div>`;
     }
 }
 
 async function loadNotes() {
     try {
         const notes = await api(`daily_notes?teacher_id=eq.${TEACHER_ID}&order=note_date.desc&select=id,title,content,note_date`);
-        if (notes.length) {
+        if (notes && notes.length > 0) {
             document.getElementById('notesTable').innerHTML = `
                 <table><thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead><tbody>
                 ${notes.map(n => `
                     <tr>
                         <td>${n.note_date}</td>
-                        <td><strong>${escapeHtml(n.title)}</strong><br><small>${n.content.substring(0, 80)}...</small></td>
-                        <td><button class="btn-small" onclick="deleteNote('${n.id}')">Delete</button></td>
+                        <td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
+                        <td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td>
                     </tr>
                 `).join('')}
                 </tbody></table>
             `;
         } else {
-            document.getElementById('notesTable').innerHTML = '<p>No notes yet</p>';
+            document.getElementById('notesTable').innerHTML = '<div class="loading">📭 No notes yet. Add your first note!</div>';
         }
     } catch(e) {
-        document.getElementById('notesTable').innerHTML = '<p>Error loading notes</p>';
+        document.getElementById('notesTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
 async function loadQuestions() {
     try {
         const questions = await api(`questions?teacher_id=eq.${TEACHER_ID}&select=id,question_text,answer`);
-        if (questions.length) {
+        if (questions && questions.length > 0) {
             document.getElementById('questionsTable').innerHTML = `
                 <table><thead><tr><th>Question</th><th>Answer</th><th>Actions</th></tr></thead><tbody>
                 ${questions.map(q => `
                     <tr>
                         <td>${escapeHtml(q.question_text)}</td>
                         <td>${escapeHtml(q.answer)}</td>
-                        <td><button class="btn-small" onclick="deleteQuestion('${q.id}')">Delete</button></td>
+                        <td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td>
                     </tr>
                 `).join('')}
                 </tbody></table>
             `;
         } else {
-            document.getElementById('questionsTable').innerHTML = '<p>No questions yet</p>';
+            document.getElementById('questionsTable').innerHTML = '<div class="loading">❓ No questions yet. Add your first question!</div>';
         }
     } catch(e) {
-        document.getElementById('questionsTable').innerHTML = '<p>Error loading questions</p>';
+        document.getElementById('questionsTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
 async function loadBooks() {
     try {
         const books = await api(`books?teacher_id=eq.${TEACHER_ID}&select=id,title,author`);
-        if (books.length) {
+        if (books && books.length > 0) {
             document.getElementById('booksTable').innerHTML = `
                 <table><thead><tr><th>Title</th><th>Author</th><th>Actions</th></tr></thead><tbody>
                 ${books.map(b => `
                     <tr>
                         <td>${escapeHtml(b.title)}</td>
                         <td>${escapeHtml(b.author || '-')}</td>
-                        <td><button class="btn-small" onclick="deleteBook('${b.id}')">Delete</button></td>
+                        <td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td>
                     </tr>
                 `).join('')}
                 </tbody></table>
             `;
         } else {
-            document.getElementById('booksTable').innerHTML = '<p>No books yet</p>';
+            document.getElementById('booksTable').innerHTML = '<div class="loading">📚 No books yet. Add your first book!</div>';
         }
     } catch(e) {
-        document.getElementById('booksTable').innerHTML = '<p>Error loading books</p>';
+        document.getElementById('booksTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
 async function loadStudents() {
     try {
         const students = await api(`students?teacher_id=eq.${TEACHER_ID}&select=first_name,username,telegram_id,joined_at`);
-        if (students.length) {
+        if (students && students.length > 0) {
             document.getElementById('studentsTable').innerHTML = `
                 <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead><tbody>
                 ${students.map(s => `
@@ -397,10 +442,10 @@ async function loadStudents() {
                 </tbody></table>
             `;
         } else {
-            document.getElementById('studentsTable').innerHTML = '<p>No students yet</p>';
+            document.getElementById('studentsTable').innerHTML = '<div class="loading">👨‍🎓 No students yet</div>';
         }
     } catch(e) {
-        document.getElementById('studentsTable').innerHTML = '<p>Error loading students</p>';
+        document.getElementById('studentsTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
@@ -412,59 +457,79 @@ async function saveNote() {
         note_date: document.getElementById('noteDate').value
     };
     if (!data.title || !data.content) {
-        alert('Title and content required');
+        showToast('Title and content are required', 'error');
         return;
     }
+    if (!data.note_date) {
+        data.note_date = new Date().toISOString().split('T')[0];
+    }
+    
     try {
         await api('daily_notes', { method: 'POST', body: JSON.stringify(data) });
         closeModal('noteModal');
-        loadNotes();
-        loadAnalytics();
-        alert('Note added successfully!');
+        await loadNotes();
+        await loadAnalytics();
+        showToast('Note added successfully!', 'success');
+        document.getElementById('noteTitle').value = '';
+        document.getElementById('noteContent').value = '';
     } catch(e) {
-        alert('Error adding note: ' + e.message);
+        showToast('Error adding note: ' + e.message, 'error');
     }
 }
 
 async function saveQuestion() {
-    const data = {
-        teacher_id: TEACHER_ID,
-        question_text: document.getElementById('questionText').value,
-        answer: document.getElementById('questionAnswer').value
-    };
-    if (!data.question_text || !data.answer) {
-        alert('Question and answer required');
+    const questionText = document.getElementById('questionText').value.trim();
+    const answer = document.getElementById('questionAnswer').value.trim();
+    
+    if (!questionText || !answer) {
+        showToast('Question and answer are required', 'error');
         return;
     }
+    
+    const data = {
+        teacher_id: TEACHER_ID,
+        question_text: questionText,
+        answer: answer
+    };
+    
     try {
-        await api('questions', { method: 'POST', body: JSON.stringify(data) });
+        const result = await api('questions', { method: 'POST', body: JSON.stringify(data) });
         closeModal('questionModal');
-        loadQuestions();
-        loadAnalytics();
-        alert('Question added successfully!');
+        await loadQuestions();
+        await loadAnalytics();
+        showToast('Question added successfully!', 'success');
+        document.getElementById('questionText').value = '';
+        document.getElementById('questionAnswer').value = '';
     } catch(e) {
-        alert('Error adding question: ' + e.message);
+        showToast('Error adding question: ' + e.message, 'error');
     }
 }
 
 async function saveBook() {
-    const data = {
-        teacher_id: TEACHER_ID,
-        title: document.getElementById('bookTitle').value,
-        author: document.getElementById('bookAuthor').value
-    };
-    if (!data.title) {
-        alert('Title required');
+    const title = document.getElementById('bookTitle').value.trim();
+    const author = document.getElementById('bookAuthor').value.trim();
+    
+    if (!title) {
+        showToast('Title is required', 'error');
         return;
     }
+    
+    const data = {
+        teacher_id: TEACHER_ID,
+        title: title,
+        author: author || null
+    };
+    
     try {
         await api('books', { method: 'POST', body: JSON.stringify(data) });
         closeModal('bookModal');
-        loadBooks();
-        loadAnalytics();
-        alert('Book added successfully!');
+        await loadBooks();
+        await loadAnalytics();
+        showToast('Book added successfully!', 'success');
+        document.getElementById('bookTitle').value = '';
+        document.getElementById('bookAuthor').value = '';
     } catch(e) {
-        alert('Error adding book: ' + e.message);
+        showToast('Error adding book: ' + e.message, 'error');
     }
 }
 
@@ -472,10 +537,11 @@ async function deleteNote(id) {
     if (!confirm('Delete this note?')) return;
     try {
         await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' });
-        loadNotes();
-        loadAnalytics();
+        await loadNotes();
+        await loadAnalytics();
+        showToast('Note deleted', 'success');
     } catch(e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'error');
     }
 }
 
@@ -483,10 +549,11 @@ async function deleteQuestion(id) {
     if (!confirm('Delete this question?')) return;
     try {
         await api(`questions?id=eq.${id}`, { method: 'DELETE' });
-        loadQuestions();
-        loadAnalytics();
+        await loadQuestions();
+        await loadAnalytics();
+        showToast('Question deleted', 'success');
     } catch(e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'error');
     }
 }
 
@@ -494,10 +561,11 @@ async function deleteBook(id) {
     if (!confirm('Delete this book?')) return;
     try {
         await api(`books?id=eq.${id}`, { method: 'DELETE' });
-        loadBooks();
-        loadAnalytics();
+        await loadBooks();
+        await loadAnalytics();
+        showToast('Book deleted', 'success');
     } catch(e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'error');
     }
 }
 
@@ -508,7 +576,10 @@ function showPage(page) {
     event.target.classList.add('active');
 }
 
-function openNoteModal() { document.getElementById('noteModal').style.display = 'flex'; }
+function openNoteModal() { 
+    document.getElementById('noteDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('noteModal').style.display = 'flex'; 
+}
 function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
 function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
