@@ -3,11 +3,11 @@ import os
 from datetime import date
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from supabase import create_client
 import google.generativeai as genai
+import requests
 
 # ============================================
-# YOUR CREDENTIALS - FILLED
+# YOUR CREDENTIALS - ALREADY FILLED
 # ============================================
 BOT_TOKEN = "8755788296:AAEpumtdZTyIfvKGrl_tn6C2MleogO1LyKA"
 SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co"
@@ -19,12 +19,41 @@ TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize services
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize Gemini (works fine)
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# ============ DATABASE FUNCTIONS ============
+# ============ SIMPLE SUPABASE FUNCTIONS (Using Requests) ============
+
+def supabase_request(endpoint, method="GET", data=None):
+    """Simple Supabase API call using requests (no library issues)"""
+    url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        if method == "GET":
+            response = requests.get(url, headers=headers)
+        elif method == "POST":
+            response = requests.post(url, headers=headers, json=data)
+        elif method == "PATCH":
+            response = requests.patch(url, headers=headers, json=data)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=headers)
+        else:
+            return None
+        
+        if response.status_code in [200, 201, 204]:
+            return response.json() if response.content else []
+        else:
+            logger.error(f"Supabase error: {response.status_code} - {response.text}")
+            return []
+    except Exception as e:
+        logger.error(f"Request error: {e}")
+        return []
 
 def save_student(telegram_user):
     """Save student to database"""
@@ -36,24 +65,26 @@ def save_student(telegram_user):
             "teacher_id": TEACHER_ID,
             "last_seen": date.today().isoformat()
         }
-        supabase.table("students").upsert(data, on_conflict="telegram_id").execute()
+        # Check if student exists
+        existing = supabase_request(f"students?telegram_id=eq.{telegram_user.id}&select=id")
+        if existing and len(existing) > 0:
+            # Update existing
+            supabase_request(f"students?telegram_id=eq.{telegram_user.id}", "PATCH", data)
+        else:
+            # Insert new
+            supabase_request("students", "POST", data)
         return True
     except Exception as e:
-        logger.error(f"Save error: {e}")
+        logger.error(f"Save student error: {e}")
         return False
 
 def get_daily_note():
     """Get today's note"""
     try:
         today = date.today().isoformat()
-        result = supabase.table("daily_notes") \
-            .select("*") \
-            .eq("teacher_id", TEACHER_ID) \
-            .eq("note_date", today) \
-            .eq("is_published", True) \
-            .execute()
-        if result.data:
-            return result.data[0]["content"]
+        result = supabase_request(f"daily_notes?teacher_id=eq.{TEACHER_ID}&note_date=eq.{today}&is_published=eq.true&select=content")
+        if result and len(result) > 0:
+            return result[0]["content"]
         return "📭 No note for today. Check back later!"
     except Exception as e:
         logger.error(f"Note error: {e}")
@@ -62,17 +93,12 @@ def get_daily_note():
 def get_all_notes():
     """Get all notes"""
     try:
-        result = supabase.table("daily_notes") \
-            .select("title, content, note_date, subject") \
-            .eq("teacher_id", TEACHER_ID) \
-            .eq("is_published", True) \
-            .order("note_date", desc=True) \
-            .limit(10) \
-            .execute()
-        if not result.data:
+        result = supabase_request(f"daily_notes?teacher_id=eq.{TEACHER_ID}&is_published=eq.true&order=note_date.desc&limit=10&select=title,content,note_date,subject")
+        if not result:
             return "📭 No notes available"
+        
         text = "📚 *Recent Notes*\n\n"
-        for n in result.data:
+        for n in result:
             text += f"📅 **{n['note_date']}**\n"
             text += f"📝 {n['title']}\n"
             if n.get('subject'):
@@ -80,60 +106,52 @@ def get_all_notes():
             text += f"{n['content'][:100]}...\n\n"
         return text
     except Exception as e:
+        logger.error(f"Get notes error: {e}")
         return "Error fetching notes"
 
 def get_questions():
     """Get practice questions"""
     try:
-        result = supabase.table("questions") \
-            .select("id, question_text, subject, difficulty") \
-            .eq("teacher_id", TEACHER_ID) \
-            .eq("is_active", True) \
-            .limit(5) \
-            .execute()
-        if not result.data:
+        result = supabase_request(f"questions?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&limit=5&select=id,question_text,subject,difficulty")
+        if not result:
             return "📭 No questions available"
+        
         text = "❓ *Practice Questions*\n\n"
-        for i, q in enumerate(result.data, 1):
+        for i, q in enumerate(result, 1):
             emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}.get(q.get('difficulty'), "🟡")
             subject = f" [{q.get('subject', 'General')}]" if q.get('subject') else ""
             text += f"{i}. {emoji} {q['question_text']}{subject}\n\n"
         text += "\n💡 Type `/answer [number]` to see answer"
         return text
     except Exception as e:
+        logger.error(f"Get questions error: {e}")
         return "Error fetching questions"
 
 def get_answer(num):
     """Get answer by number"""
     try:
-        result = supabase.table("questions") \
-            .select("question_text, answer, explanation") \
-            .eq("teacher_id", TEACHER_ID) \
-            .eq("is_active", True) \
-            .limit(5) \
-            .execute()
-        if not result.data or num > len(result.data):
+        result = supabase_request(f"questions?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&limit=5&select=question_text,answer,explanation")
+        if not result or num > len(result):
             return "❓ Question not found"
-        q = result.data[num - 1]
+        
+        q = result[num - 1]
         text = f"❓ *Question:* {q['question_text']}\n\n✅ *Answer:* {q['answer']}"
         if q.get('explanation'):
             text += f"\n\n💡 *Explanation:* {q['explanation']}"
         return text
     except Exception as e:
+        logger.error(f"Get answer error: {e}")
         return "Error fetching answer"
 
 def get_books():
     """Get all books"""
     try:
-        result = supabase.table("books") \
-            .select("title, author, file_url, subject") \
-            .eq("teacher_id", TEACHER_ID) \
-            .eq("is_active", True) \
-            .execute()
-        if not result.data:
+        result = supabase_request(f"books?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&select=title,author,file_url,subject")
+        if not result:
             return "📭 No books available"
+        
         text = "📚 *Available Books*\n\n"
-        for b in result.data:
+        for b in result:
             text += f"📖 **{b['title']}**\n"
             if b.get('author'):
                 text += f"✍️ {b['author']}\n"
@@ -144,6 +162,7 @@ def get_books():
             text += "\n"
         return text
     except Exception as e:
+        logger.error(f"Get books error: {e}")
         return "Error fetching books"
 
 # ============ TELEGRAM HANDLERS ============
@@ -164,6 +183,7 @@ I'm EduBot - your AI learning assistant.
 
 Type a command to start learning! 🚀"""
     await update.message.reply_text(text, parse_mode='Markdown')
+    logger.info(f"User {user.id} started bot")
 
 async def daily(update: Update, context):
     await update.message.chat.send_action("typing")
@@ -198,15 +218,25 @@ async def books(update: Update, context):
 
 async def ask(update: Update, context):
     if not context.args:
-        await update.message.reply_text("Example: `/ask What is photosynthesis?`", parse_mode='Markdown')
+        await update.message.reply_text(
+            "Example: `/ask What is photosynthesis?`",
+            parse_mode='Markdown'
+        )
         return
+    
     question = ' '.join(context.args)
     await update.message.reply_text("🤔 Thinking...")
     try:
         response = model.generate_content(question)
         await update.message.reply_text(f"💡 *Answer*\n\n{response.text}", parse_mode='Markdown')
     except Exception as e:
+        logger.error(f"Gemini error: {e}")
         await update.message.reply_text("⚠️ AI busy. Try again in a moment.")
+
+async def error_handler(update: Update, context):
+    logger.error(f"Error: {context.error}")
+    if update and update.effective_message:
+        await update.effective_message.reply_text("⚠️ Something went wrong. Try again.")
 
 # ============ MAIN ============
 
@@ -215,10 +245,13 @@ def main():
     print("🤖 EduBot Starting on Railway...")
     print("=" * 40)
     
+    # Get port from Railway
     port = int(os.environ.get("PORT", 8080))
     
+    # Create application
     app = Application.builder().token(BOT_TOKEN).build()
     
+    # Add handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("daily", daily))
     app.add_handler(CommandHandler("allnotes", allnotes))
@@ -226,13 +259,15 @@ def main():
     app.add_handler(CommandHandler("answer", answer))
     app.add_handler(CommandHandler("books", books))
     app.add_handler(CommandHandler("ask", ask))
+    app.add_error_handler(error_handler)
     
     # Get Railway URL for webhook
     railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
     
     if railway_domain:
         webhook_url = f"https://{railway_domain}/{BOT_TOKEN}"
-        print(f"🚀 Starting webhook: {webhook_url}")
+        print(f"🚀 Starting webhook mode")
+        print(f"🌐 Webhook URL: {webhook_url}")
         app.run_webhook(
             listen="0.0.0.0",
             port=port,
@@ -240,7 +275,8 @@ def main():
             webhook_url=webhook_url
         )
     else:
-        print("🔄 Starting polling mode")
+        print("🔄 Starting polling mode (local testing)")
+        print("✅ Bot is running! Press Ctrl+C to stop.")
         app.run_polling()
 
 if __name__ == "__main__":
