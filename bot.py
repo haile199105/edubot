@@ -4,7 +4,8 @@ from datetime import date
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import google.generativeai as genai
-import httpx
+import requests
+import json
 
 # ============================================
 # YOUR CREDENTIALS - ALREADY FILLED
@@ -23,10 +24,10 @@ logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# ============ SUPABASE FUNCTIONS (Using httpx directly) ============
+# ============ SUPABASE FUNCTIONS (Using requests) ============
 
-async def supabase_request(endpoint, method="GET", data=None):
-    """Simple Supabase API call using httpx"""
+def supabase_request(endpoint, method="GET", data=None):
+    """Make a request to Supabase REST API"""
     url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
     headers = {
         "apikey": SUPABASE_KEY,
@@ -34,34 +35,32 @@ async def supabase_request(endpoint, method="GET", data=None):
         "Content-Type": "application/json"
     }
     
-    async with httpx.AsyncClient() as client:
-        try:
-            if method == "GET":
-                response = await client.get(url, headers=headers)
-            elif method == "POST":
-                response = await client.post(url, headers=headers, json=data)
-            elif method == "PATCH":
-                response = await client.patch(url, headers=headers, json=data)
-            elif method == "DELETE":
-                response = await client.delete(url, headers=headers)
-            else:
-                return []
-            
-            if response.status_code in [200, 201, 204]:
-                return response.json() if response.content else []
-            else:
-                logger.error(f"Supabase error: {response.status_code}")
-                return []
-        except Exception as e:
-            logger.error(f"Request error: {e}")
+    try:
+        if method == "GET":
+            response = requests.get(url, headers=headers)
+        elif method == "POST":
+            response = requests.post(url, headers=headers, json=data)
+        elif method == "PATCH":
+            response = requests.patch(url, headers=headers, json=data)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=headers)
+        else:
+            return None
+        
+        if response.status_code in [200, 201, 204]:
+            return response.json() if response.content else []
+        else:
+            logger.error(f"Supabase error {response.status_code}: {response.text}")
             return []
+    except Exception as e:
+        logger.error(f"Request error: {e}")
+        return []
 
-def save_student_sync(telegram_user):
-    """Save student to database (sync version for compatibility)"""
-    import asyncio
+def save_student(telegram_user):
+    """Save or update student in database"""
     try:
         # Check if student exists
-        existing = asyncio.run(supabase_request(f"students?telegram_id=eq.{telegram_user.id}&select=id"))
+        existing = supabase_request(f"students?telegram_id=eq.{telegram_user.id}&select=id")
         
         data = {
             "telegram_id": telegram_user.id,
@@ -73,20 +72,20 @@ def save_student_sync(telegram_user):
         
         if existing and len(existing) > 0:
             # Update existing
-            asyncio.run(supabase_request(f"students?telegram_id=eq.{telegram_user.id}", "PATCH", data))
+            supabase_request(f"students?telegram_id=eq.{telegram_user.id}", "PATCH", data)
         else:
             # Insert new
-            asyncio.run(supabase_request("students", "POST", data))
+            supabase_request("students", "POST", data)
         return True
     except Exception as e:
         logger.error(f"Save student error: {e}")
         return False
 
-async def get_daily_note_async():
+def get_daily_note():
     """Get today's note"""
     try:
         today = date.today().isoformat()
-        result = await supabase_request(f"daily_notes?teacher_id=eq.{TEACHER_ID}&note_date=eq.{today}&is_published=eq.true&select=content")
+        result = supabase_request(f"daily_notes?teacher_id=eq.{TEACHER_ID}&note_date=eq.{today}&is_published=eq.true&select=content")
         if result and len(result) > 0:
             return result[0]["content"]
         return "📭 No note for today. Check back later!"
@@ -94,10 +93,10 @@ async def get_daily_note_async():
         logger.error(f"Note error: {e}")
         return "Error fetching note"
 
-async def get_all_notes_async():
+def get_all_notes():
     """Get all notes"""
     try:
-        result = await supabase_request(f"daily_notes?teacher_id=eq.{TEACHER_ID}&is_published=eq.true&order=note_date.desc&limit=10&select=title,content,note_date,subject")
+        result = supabase_request(f"daily_notes?teacher_id=eq.{TEACHER_ID}&is_published=eq.true&order=note_date.desc&limit=10&select=title,content,note_date,subject")
         if not result:
             return "📭 No notes available"
         
@@ -113,10 +112,10 @@ async def get_all_notes_async():
         logger.error(f"Get notes error: {e}")
         return "Error fetching notes"
 
-async def get_questions_async():
+def get_questions():
     """Get practice questions"""
     try:
-        result = await supabase_request(f"questions?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&limit=5&select=id,question_text,subject,difficulty")
+        result = supabase_request(f"questions?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&limit=5&select=id,question_text,subject,difficulty")
         if not result:
             return "📭 No questions available"
         
@@ -131,10 +130,10 @@ async def get_questions_async():
         logger.error(f"Get questions error: {e}")
         return "Error fetching questions"
 
-async def get_answer_async(num):
+def get_answer(num):
     """Get answer by number"""
     try:
-        result = await supabase_request(f"questions?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&limit=5&select=question_text,answer,explanation")
+        result = supabase_request(f"questions?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&limit=5&select=question_text,answer,explanation")
         if not result or num > len(result):
             return "❓ Question not found"
         
@@ -147,10 +146,10 @@ async def get_answer_async(num):
         logger.error(f"Get answer error: {e}")
         return "Error fetching answer"
 
-async def get_books_async():
+def get_books():
     """Get all books"""
     try:
-        result = await supabase_request(f"books?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&select=title,author,file_url,subject")
+        result = supabase_request(f"books?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&select=title,author,file_url,subject")
         if not result:
             return "📭 No books available"
         
@@ -173,7 +172,7 @@ async def get_books_async():
 
 async def start(update: Update, context):
     user = update.effective_user
-    save_student_sync(user)  # Use sync version
+    save_student(user)
     text = f"""🎓 *Welcome {user.first_name}!*
 
 I'm EduBot - your AI learning assistant.
@@ -191,17 +190,17 @@ Type a command to start learning! 🚀"""
 
 async def daily(update: Update, context):
     await update.message.chat.send_action("typing")
-    note = await get_daily_note_async()
+    note = get_daily_note()
     await update.message.reply_text(f"📝 *Today's Note*\n\n{note}", parse_mode='Markdown')
 
 async def allnotes(update: Update, context):
     await update.message.chat.send_action("typing")
-    notes = await get_all_notes_async()
+    notes = get_all_notes()
     await update.message.reply_text(notes, parse_mode='Markdown')
 
 async def questions(update: Update, context):
     await update.message.chat.send_action("typing")
-    q = await get_questions_async()
+    q = get_questions()
     await update.message.reply_text(q, parse_mode='Markdown')
 
 async def answer(update: Update, context):
@@ -210,14 +209,14 @@ async def answer(update: Update, context):
         return
     try:
         num = int(context.args[0])
-        ans = await get_answer_async(num)
+        ans = get_answer(num)
         await update.message.reply_text(ans, parse_mode='Markdown')
     except:
         await update.message.reply_text("Please provide a valid number.")
 
 async def books(update: Update, context):
     await update.message.chat.send_action("typing")
-    books_text = await get_books_async()
+    books_text = get_books()
     await update.message.reply_text(books_text, parse_mode='Markdown')
 
 async def ask(update: Update, context):
@@ -280,8 +279,8 @@ def main():
             webhook_url=webhook_url
         )
     else:
-        print("🔄 Starting polling mode (local testing)")
-        print("✅ Bot is running! Press Ctrl+C to stop.")
+        print("🔄 Starting polling mode")
+        print("✅ Bot is running!")
         app.run_polling()
 
 if __name__ == "__main__":
