@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduBot Dashboard - Haileyesus</title>
+    <title>EduBot Dashboard - Login</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -12,8 +12,59 @@
             min-height: 100vh;
             color: #f1f5f9;
         }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         
+        /* Login Page */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .login-card {
+            background: #1e293b;
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            border: 1px solid #334155;
+        }
+        .login-card h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+        .login-card p {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+        .login-card input, .login-card select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+        }
+        .login-card button {
+            width: 100%;
+            padding: 12px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .login-card button:hover { background: #4f46e5; }
+        .error { color: #ef4444; text-align: center; margin-top: 15px; display: none; }
+        
+        /* Main App */
+        .app-container { display: none; }
+        .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         .header {
             background: linear-gradient(135deg, #6366f1, #4f46e5);
             padding: 30px;
@@ -21,9 +72,6 @@
             margin-bottom: 30px;
             text-align: center;
         }
-        .header h1 { font-size: 2rem; margin-bottom: 10px; }
-        .header p { opacity: 0.9; }
-        
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -31,13 +79,12 @@
             margin-bottom: 30px;
         }
         .stat-card {
-            background: rgba(30, 41, 59, 0.9);
-            backdrop-filter: blur(10px);
+            background: #1e293b;
             padding: 20px;
             border-radius: 20px;
             border: 1px solid #334155;
         }
-        .stat-card h3 { font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; }
+        .stat-card h3 { font-size: 0.8rem; color: #94a3b8; }
         .stat-card .value { font-size: 2rem; font-weight: bold; color: #6366f1; }
         
         .nav {
@@ -53,44 +100,28 @@
             padding: 10px 20px;
             border-radius: 40px;
             cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.2s;
         }
         .nav-btn.active {
             background: #6366f1;
             color: white;
-            border-color: #6366f1;
         }
-        .nav-btn:hover { background: #334155; color: white; }
         
         .card {
             background: #1e293b;
             border-radius: 20px;
             padding: 25px;
             margin-bottom: 25px;
-            border: 1px solid #334155;
         }
         .card-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
             margin-bottom: 20px;
             flex-wrap: wrap;
-            gap: 15px;
         }
-        .card-header h2 { font-size: 1.3rem; }
         
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #334155;
-        }
-        th { color: #94a3b8; font-weight: 500; font-size: 0.8rem; text-transform: uppercase; }
-        td { font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+        th { color: #94a3b8; font-size: 0.8rem; }
         
         button {
             background: #6366f1;
@@ -99,13 +130,9 @@
             padding: 8px 16px;
             border-radius: 10px;
             cursor: pointer;
-            font-size: 0.85rem;
-            transition: all 0.2s;
         }
-        button:hover { background: #4f46e5; transform: scale(0.98); }
-        .btn-small { padding: 4px 10px; font-size: 0.75rem; margin: 0 2px; }
+        .btn-small { padding: 4px 10px; font-size: 0.75rem; }
         .btn-danger { background: #ef4444; }
-        .btn-danger:hover { background: #dc2626; }
         
         .modal {
             display: none;
@@ -125,9 +152,7 @@
             border-radius: 20px;
             max-width: 500px;
             width: 90%;
-            border: 1px solid #334155;
         }
-        .modal-content h3 { margin-bottom: 20px; }
         .modal-content input, .modal-content textarea, .modal-content select {
             width: 100%;
             padding: 10px;
@@ -136,151 +161,145 @@
             border: 1px solid #334155;
             border-radius: 10px;
             color: white;
-            font-family: inherit;
         }
-        .modal-content textarea { min-height: 100px; resize: vertical; }
-        
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 500;
-        }
-        .badge-success { background: #22c55e20; color: #22c55e; }
-        .badge-warning { background: #f59e0b20; color: #f59e0b; }
-        
-        .empty { text-align: center; padding: 40px; color: #64748b; }
-        .error { color: #ef4444; text-align: center; padding: 20px; }
+        .badge-success { background: #22c55e20; color: #22c55e; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; }
         
         @media (max-width: 768px) {
             .stats { grid-template-columns: repeat(2, 1fr); }
             th, td { font-size: 0.75rem; padding: 8px; }
-            .card-header { flex-direction: column; align-items: stretch; }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="header">
+
+<!-- LOGIN PAGE -->
+<div id="loginPage" class="login-container">
+    <div class="login-card">
         <h1>🎓 EduBot Dashboard</h1>
-        <p>Welcome, Haileyesus! Manage your AI learning assistant</p>
-        <p style="font-size: 0.8rem; margin-top: 10px;">
-            🤖 Bot: Running | 📊 Dashboard: Vercel | 💾 Data: Supabase
-        </p>
+        <p>Sign in to manage your bot</p>
+        
+        <select id="role">
+            <option value="teacher">👨‍🏫 Teacher</option>
+            <option value="admin">🛡️ Super Admin</option>
+        </select>
+        
+        <input type="text" id="teacherId" placeholder="Teacher ID (for Teacher login)">
+        <input type="password" id="password" placeholder="PIN / Password">
+        
+        <button onclick="login()">Sign In</button>
+        <div id="loginError" class="error"></div>
     </div>
-    
-    <div class="nav">
-        <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
-        <button class="nav-btn" onclick="showPage('notes')">📝 Daily Notes</button>
-        <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
-        <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
-        <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
-    </div>
-    
-    <div id="analytics" class="page">
-        <div class="stats" id="stats"><div class="stat-card"><div class="value">Loading...</div></div></div>
-        <div class="card">
-            <div class="card-header">
-                <h2>📈 Recent Student Activity</h2>
-                <button onclick="loadAnalytics()">🔄 Refresh</button>
-            </div>
-            <div id="activity"></div>
+</div>
+
+<!-- MAIN APP -->
+<div id="appPage" class="app-container">
+    <div class="main-container">
+        <div class="header">
+            <h1>🎓 EduBot Dashboard</h1>
+            <p>Welcome, <span id="userName">Teacher</span>!</p>
+            <button onclick="logout()" style="background: #ef4444; margin-top: 10px;">🚪 Logout</button>
         </div>
-    </div>
-    
-    <div id="notes" class="page" style="display:none">
-        <div class="card">
-            <div class="card-header">
-                <h2>📝 Daily Notes</h2>
-                <button onclick="openNoteModal()">+ Add New Note</button>
-            </div>
-            <div id="notes-table"></div>
+        
+        <div class="nav">
+            <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
+            <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
+            <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
+            <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
+            <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
         </div>
-    </div>
-    
-    <div id="questions" class="page" style="display:none">
-        <div class="card">
-            <div class="card-header">
-                <h2>❓ Practice Questions</h2>
-                <button onclick="openQuestionModal()">+ Add Question</button>
-            </div>
-            <div id="questions-table"></div>
+        
+        <div id="analytics" class="page">
+            <div class="stats" id="stats"></div>
         </div>
-    </div>
-    
-    <div id="books" class="page" style="display:none">
-        <div class="card">
-            <div class="card-header">
-                <h2>📚 Books Library</h2>
-                <button onclick="openBookModal()">+ Add Book</button>
+        
+        <div id="notes" class="page" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📝 Daily Notes</h2>
+                    <button onclick="openNoteModal()">+ Add Note</button>
+                </div>
+                <div id="notesTable"></div>
             </div>
-            <div id="books-table"></div>
         </div>
-    </div>
-    
-    <div id="students" class="page" style="display:none">
-        <div class="card">
-            <h2>👨‍🎓 Registered Students</h2>
-            <div id="students-table"></div>
+        
+        <div id="questions" class="page" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <h2>❓ Questions</h2>
+                    <button onclick="openQuestionModal()">+ Add Question</button>
+                </div>
+                <div id="questionsTable"></div>
+            </div>
+        </div>
+        
+        <div id="books" class="page" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📚 Books</h2>
+                    <button onclick="openBookModal()">+ Add Book</button>
+                </div>
+                <div id="booksTable"></div>
+            </div>
+        </div>
+        
+        <div id="students" class="page" style="display:none">
+            <div class="card">
+                <h2>👨‍🎓 Students</h2>
+                <div id="studentsTable"></div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Modals -->
+<!-- MODALS -->
 <div id="noteModal" class="modal">
     <div class="modal-content">
-        <h3>📝 Add Daily Note</h3>
+        <h3>Add Note</h3>
         <input type="text" id="noteTitle" placeholder="Title">
         <input type="text" id="noteSubject" placeholder="Subject">
         <input type="date" id="noteDate">
-        <textarea id="noteContent" placeholder="Write your note content here..."></textarea>
-        <select id="notePublished">
-            <option value="true">✅ Published</option>
-            <option value="false">🔒 Draft</option>
-        </select>
-        <button onclick="saveNote()">Save Note</button>
-        <button onclick="closeModal('noteModal')" style="background:#334155">Cancel</button>
+        <textarea id="noteContent" rows="5" placeholder="Content..."></textarea>
+        <button onclick="saveNote()">Save</button>
+        <button onclick="closeModal('noteModal')">Cancel</button>
     </div>
 </div>
 
 <div id="questionModal" class="modal">
     <div class="modal-content">
-        <h3>❓ Add Question</h3>
-        <textarea id="questionText" placeholder="Enter your question..."></textarea>
-        <textarea id="questionAnswer" placeholder="Enter the answer..."></textarea>
+        <h3>Add Question</h3>
+        <textarea id="questionText" rows="3" placeholder="Question..."></textarea>
+        <textarea id="questionAnswer" rows="3" placeholder="Answer..."></textarea>
         <input type="text" id="questionSubject" placeholder="Subject">
         <select id="questionDifficulty">
-            <option value="easy">🟢 Easy</option>
-            <option value="medium" selected>🟡 Medium</option>
-            <option value="hard">🔴 Hard</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
         </select>
-        <textarea id="questionExplanation" placeholder="Explanation (optional)"></textarea>
-        <button onclick="saveQuestion()">Save Question</button>
-        <button onclick="closeModal('questionModal')" style="background:#334155">Cancel</button>
+        <button onclick="saveQuestion()">Save</button>
+        <button onclick="closeModal('questionModal')">Cancel</button>
     </div>
 </div>
 
 <div id="bookModal" class="modal">
     <div class="modal-content">
-        <h3>📚 Add Book</h3>
-        <input type="text" id="bookTitle" placeholder="Book Title">
+        <h3>Add Book</h3>
+        <input type="text" id="bookTitle" placeholder="Title">
         <input type="text" id="bookAuthor" placeholder="Author">
         <input type="text" id="bookSubject" placeholder="Subject">
-        <textarea id="bookDescription" placeholder="Description"></textarea>
-        <input type="url" id="bookFileUrl" placeholder="File URL (Google Drive link)">
-        <button onclick="saveBook()">Save Book</button>
-        <button onclick="closeModal('bookModal')" style="background:#334155">Cancel</button>
+        <textarea id="bookDescription" rows="3" placeholder="Description..."></textarea>
+        <input type="url" id="bookFileUrl" placeholder="File URL">
+        <button onclick="saveBook()">Save</button>
+        <button onclick="closeModal('bookModal')">Cancel</button>
     </div>
 </div>
 
 <script>
-// ============================================
-// YOUR SUPABASE CREDENTIALS
-// ============================================
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
-const TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
+const VALID_TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
+const TEACHER_PIN = "123456";
+
+let currentTeacherId = null;
 
 async function api(path, options = {}) {
     const url = `${SUPABASE_URL}/rest/v1/${path}`;
@@ -292,151 +311,146 @@ async function api(path, options = {}) {
         },
         ...options
     });
-    if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     if (options.method === "DELETE") return null;
     return res.json();
+}
+
+function login() {
+    const role = document.getElementById('role').value;
+    const teacherId = document.getElementById('teacherId').value;
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('loginError');
+    
+    if (role === 'teacher') {
+        if (teacherId === VALID_TEACHER_ID && password === TEACHER_PIN) {
+            currentTeacherId = teacherId;
+            document.getElementById('userName').textContent = 'Haileyesus (Teacher)';
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('appPage').style.display = 'block';
+            loadAnalytics();
+            loadNotes();
+            loadQuestions();
+            loadBooks();
+            loadStudents();
+            errorDiv.style.display = 'none';
+        } else {
+            errorDiv.textContent = 'Invalid Teacher ID or PIN';
+            errorDiv.style.display = 'block';
+        }
+    } else if (role === 'admin') {
+        if (password === 'admin123') {
+            currentTeacherId = VALID_TEACHER_ID;
+            document.getElementById('userName').textContent = 'Super Admin';
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('appPage').style.display = 'block';
+            loadAnalytics();
+            loadNotes();
+            loadQuestions();
+            loadBooks();
+            loadStudents();
+            errorDiv.style.display = 'none';
+        } else {
+            errorDiv.textContent = 'Invalid Admin Password';
+            errorDiv.style.display = 'block';
+        }
+    }
+}
+
+function logout() {
+    currentTeacherId = null;
+    document.getElementById('appPage').style.display = 'none';
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('teacherId').value = '';
+    document.getElementById('password').value = '';
 }
 
 async function loadAnalytics() {
     try {
         const [students, notes, questions, books] = await Promise.all([
-            api(`students?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`daily_notes?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`questions?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`books?teacher_id=eq.${TEACHER_ID}&select=id`)
+            api(`students?teacher_id=eq.${VALID_TEACHER_ID}&select=id`),
+            api(`daily_notes?teacher_id=eq.${VALID_TEACHER_ID}&select=id`),
+            api(`questions?teacher_id=eq.${VALID_TEACHER_ID}&select=id`),
+            api(`books?teacher_id=eq.${VALID_TEACHER_ID}&select=id`)
         ]);
-        
         document.getElementById('stats').innerHTML = `
-            <div class="stat-card"><h3>Total Students</h3><div class="value">${students.length}</div></div>
-            <div class="stat-card"><h3>Total Notes</h3><div class="value">${notes.length}</div></div>
+            <div class="stat-card"><h3>Students</h3><div class="value">${students.length}</div></div>
+            <div class="stat-card"><h3>Notes</h3><div class="value">${notes.length}</div></div>
             <div class="stat-card"><h3>Questions</h3><div class="value">${questions.length}</div></div>
             <div class="stat-card"><h3>Books</h3><div class="value">${books.length}</div></div>
         `;
-        document.getElementById('activity').innerHTML = '<div class="empty">📭 No recent activity</div>';
-    } catch(e) {
-        console.error(e);
-        document.getElementById('stats').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
+    } catch(e) { console.error(e); }
 }
 
 async function loadNotes() {
     try {
-        const notes = await api(`daily_notes?teacher_id=eq.${TEACHER_ID}&order=note_date.desc&select=*`);
+        const notes = await api(`daily_notes?teacher_id=eq.${VALID_TEACHER_ID}&order=note_date.desc`);
         if (notes.length) {
-            document.getElementById('notes-table').innerHTML = `
-                <table><thead><tr><th>Date</th><th>Title</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>
-                    ${notes.map(n => `
-                        <tr>
-                            <td>${n.note_date}</td>
-                            <td><strong>${n.title}</strong></td>
-                            <td>${n.subject || '-'}</td>
-                            <td><span class="badge ${n.is_published ? 'badge-success' : 'badge-warning'}">${n.is_published ? 'Published' : 'Draft'}</span></td>
-                            <td><button class="btn-small" onclick="deleteNote('${n.id}')">🗑 Delete</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-                </table>
+            document.getElementById('notesTable').innerHTML = `
+                <table><thead><tr><th>Date</th><th>Title</th><th>Subject</th><th>Actions</th></tr></thead><tbody>
+                ${notes.map(n => `<tr><td>${n.note_date}</td><td>${n.title}</td><td>${n.subject || '-'}</td><td><button class="btn-small" onclick="deleteNote('${n.id}')">Delete</button></td></tr>`).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('notes-table').innerHTML = '<div class="empty">📭 No notes yet. Add your first note!</div>';
+            document.getElementById('notesTable').innerHTML = '<p>No notes yet</p>';
         }
-    } catch(e) {
-        document.getElementById('notes-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
+    } catch(e) { console.error(e); }
 }
 
 async function loadQuestions() {
     try {
-        const questions = await api(`questions?teacher_id=eq.${TEACHER_ID}&order=created_at.desc&select=*`);
+        const questions = await api(`questions?teacher_id=eq.${VALID_TEACHER_ID}`);
         if (questions.length) {
-            document.getElementById('questions-table').innerHTML = `
-                <table><thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead>
-                <tbody>
-                    ${questions.map(q => `
-                        <tr>
-                            <td>${q.question_text.substring(0, 60)}...</td>
-                            <td>${q.subject || '-'}</td>
-                            <td>${q.difficulty || 'medium'}</td>
-                            <td><button class="btn-small" onclick="deleteQuestion('${q.id}')">🗑 Delete</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-                </table>
+            document.getElementById('questionsTable').innerHTML = `
+                <table><thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead><tbody>
+                ${questions.map(q => `<tr><td>${q.question_text.substring(0, 50)}...</td><td>${q.subject || '-'}</td><td>${q.difficulty}</td><td><button class="btn-small" onclick="deleteQuestion('${q.id}')">Delete</button></td></tr>`).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('questions-table').innerHTML = '<div class="empty">❓ No questions yet. Add your first question!</div>';
+            document.getElementById('questionsTable').innerHTML = '<p>No questions yet</p>';
         }
-    } catch(e) {
-        document.getElementById('questions-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
+    } catch(e) { console.error(e); }
 }
 
 async function loadBooks() {
     try {
-        const books = await api(`books?teacher_id=eq.${TEACHER_ID}&select=*`);
+        const books = await api(`books?teacher_id=eq.${VALID_TEACHER_ID}`);
         if (books.length) {
-            document.getElementById('books-table').innerHTML = `
-                <table><thead><tr><th>Title</th><th>Author</th><th>Subject</th><th>Link</th><th>Actions</th></tr></thead>
-                <tbody>
-                    ${books.map(b => `
-                        <tr>
-                            <td><strong>${b.title}</strong></td>
-                            <td>${b.author || '-'}</td>
-                            <td>${b.subject || '-'}</td>
-                            <td>${b.file_url ? `<a href="${b.file_url}" target="_blank" style="color:#6366f1">🔗 Link</a>` : '-'}</td>
-                            <td><button class="btn-small" onclick="deleteBook('${b.id}')">🗑 Delete</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-                </table>
+            document.getElementById('booksTable').innerHTML = `
+                <table><thead><tr><th>Title</th><th>Author</th><th>Subject</th><th>Actions</th></tr></thead><tbody>
+                ${books.map(b => `<tr><td>${b.title}</td><td>${b.author || '-'}</td><td>${b.subject || '-'}</td><td><button class="btn-small" onclick="deleteBook('${b.id}')">Delete</button></td></tr>`).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('books-table').innerHTML = '<div class="empty">📚 No books yet. Add your first book!</div>';
+            document.getElementById('booksTable').innerHTML = '<p>No books yet</p>';
         }
-    } catch(e) {
-        document.getElementById('books-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
+    } catch(e) { console.error(e); }
 }
 
 async function loadStudents() {
     try {
-        const students = await api(`students?teacher_id=eq.${TEACHER_ID}&order=joined_at.desc&select=*`);
+        const students = await api(`students?teacher_id=eq.${VALID_TEACHER_ID}`);
         if (students.length) {
-            document.getElementById('students-table').innerHTML = `
-                <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead>
-                <tbody>
-                    ${students.map(s => `
-                        <tr>
-                            <td>${s.first_name || 'Anonymous'}</td>
-                            <td>@${s.username || '-'}</td>
-                            <td>${s.telegram_id}</td>
-                            <td>${new Date(s.joined_at).toLocaleDateString()}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-                </table>
+            document.getElementById('studentsTable').innerHTML = `
+                <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead><tbody>
+                ${students.map(s => `<tr><td>${s.first_name || 'Anonymous'}</td><td>@${s.username || '-'}</td><td>${s.telegram_id}</td><td>${new Date(s.joined_at).toLocaleDateString()}</td></tr>`).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('students-table').innerHTML = '<div class="empty">👨‍🎓 No students yet</div>';
+            document.getElementById('studentsTable').innerHTML = '<p>No students yet</p>';
         }
-    } catch(e) {
-        document.getElementById('students-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
+    } catch(e) { console.error(e); }
 }
 
 async function saveNote() {
     const data = {
-        teacher_id: TEACHER_ID,
+        teacher_id: VALID_TEACHER_ID,
         title: document.getElementById('noteTitle').value,
         subject: document.getElementById('noteSubject').value,
         note_date: document.getElementById('noteDate').value,
         content: document.getElementById('noteContent').value,
-        is_published: document.getElementById('notePublished').value === 'true'
+        is_published: true
     };
-    if (!data.title || !data.content) { alert('Title and content required'); return; }
     await api('daily_notes', { method: 'POST', body: JSON.stringify(data) });
     closeModal('noteModal');
     loadNotes();
@@ -444,15 +458,13 @@ async function saveNote() {
 
 async function saveQuestion() {
     const data = {
-        teacher_id: TEACHER_ID,
+        teacher_id: VALID_TEACHER_ID,
         question_text: document.getElementById('questionText').value,
         answer: document.getElementById('questionAnswer').value,
         subject: document.getElementById('questionSubject').value,
         difficulty: document.getElementById('questionDifficulty').value,
-        explanation: document.getElementById('questionExplanation').value,
         is_active: true
     };
-    if (!data.question_text || !data.answer) { alert('Question and answer required'); return; }
     await api('questions', { method: 'POST', body: JSON.stringify(data) });
     closeModal('questionModal');
     loadQuestions();
@@ -460,7 +472,7 @@ async function saveQuestion() {
 
 async function saveBook() {
     const data = {
-        teacher_id: TEACHER_ID,
+        teacher_id: VALID_TEACHER_ID,
         title: document.getElementById('bookTitle').value,
         author: document.getElementById('bookAuthor').value,
         subject: document.getElementById('bookSubject').value,
@@ -468,7 +480,6 @@ async function saveBook() {
         file_url: document.getElementById('bookFileUrl').value,
         is_active: true
     };
-    if (!data.title) { alert('Title required'); return; }
     await api('books', { method: 'POST', body: JSON.stringify(data) });
     closeModal('bookModal');
     loadBooks();
@@ -497,20 +508,12 @@ function showPage(page) {
     document.getElementById(page).style.display = 'block';
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
-    
-    if (page === 'analytics') loadAnalytics();
-    if (page === 'notes') loadNotes();
-    if (page === 'questions') loadQuestions();
-    if (page === 'books') loadBooks();
-    if (page === 'students') loadStudents();
 }
 
 function openNoteModal() { document.getElementById('noteModal').style.display = 'flex'; }
 function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
 function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-loadAnalytics();
 </script>
 </body>
 </html>
