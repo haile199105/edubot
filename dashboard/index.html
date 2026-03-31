@@ -1,599 +1,314 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduBot Dashboard</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-            min-height: 100vh;
-            color: #f1f5f9;
-        }
-        .login-container, .app-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        .login-card, .card {
-            background: #1e293b;
-            border-radius: 24px;
-            padding: 30px;
-            border: 1px solid #334155;
-        }
-        .login-card { max-width: 400px; margin: 100px auto; }
-        .header {
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
-            padding: 30px;
-            border-radius: 24px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .stat-card {
-            background: #1e293b;
-            padding: 20px;
-            border-radius: 20px;
-            border: 1px solid #334155;
-        }
-        .stat-card .value { font-size: 2rem; font-weight: bold; color: #6366f1; }
-        .nav {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-        }
-        .nav-btn {
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: #94a3b8;
-            padding: 10px 20px;
-            border-radius: 40px;
-            cursor: pointer;
-        }
-        .nav-btn.active {
-            background: #6366f1;
-            color: white;
-        }
-        input, textarea, select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            color: white;
-        }
-        button {
-            background: #6366f1;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-        button:hover { background: #4f46e5; }
-        .btn-small { padding: 4px 10px; font-size: 0.75rem; }
-        .btn-danger { background: #ef4444; }
-        .btn-danger:hover { background: #dc2626; }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background: #1e293b;
-            padding: 30px;
-            border-radius: 20px;
-            max-width: 500px;
-            width: 90%;
-        }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
-        .error { color: #ef4444; text-align: center; margin-top: 15px; display: none; }
-        .success { color: #22c55e; text-align: center; margin-top: 15px; display: none; }
-        .loading { text-align: center; padding: 40px; color: #94a3b8; }
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #1e293b;
-            border-left: 4px solid #6366f1;
-            padding: 12px 20px;
-            border-radius: 10px;
-            z-index: 2000;
-            display: none;
-        }
-        .toast.show { display: block; }
-        .toast.success { border-left-color: #22c55e; }
-        .toast.error { border-left-color: #ef4444; }
-    </style>
-</head>
-<body>
+import logging
+import os
+from datetime import date
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import google.generativeai as genai
+import requests
+import re
 
-<!-- LOGIN PAGE -->
-<div id="loginPage" class="login-container">
-    <div class="login-card">
-        <h1 style="text-align:center;">🎓 EduBot Dashboard</h1>
-        <p style="text-align:center; color:#94a3b8;">Sign in to manage your bot</p>
+# ============================================
+# GET CREDENTIALS FROM ENVIRONMENT VARIABLES
+# ============================================
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+GEMINI_KEY = os.environ.get("GEMINI_KEY", "")
+TEACHER_ID = os.environ.get("TEACHER_ID", "")
+
+# Check if credentials are set
+if not BOT_TOKEN:
+    print("❌ ERROR: BOT_TOKEN not set!")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("❌ ERROR: Supabase credentials not set!")
+if not GEMINI_KEY:
+    print("❌ ERROR: GEMINI_KEY not set!")
+if not TEACHER_ID:
+    print("❌ ERROR: TEACHER_ID not set!")
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize Gemini if key exists
+model = None
+if GEMINI_KEY:
+    try:
+        genai.configure(api_key=GEMINI_KEY)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        logger.info("✅ Gemini initialized")
+    except Exception as e:
+        logger.error(f"Gemini init error: {e}")
+
+def escape_markdown(text):
+    """Escape special characters for Telegram Markdown"""
+    if not text:
+        return ""
+    # Characters that need escaping in Markdown
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
+def clean_text(text):
+    """Clean text for Telegram (remove problematic formatting)"""
+    if not text:
+        return ""
+    # Remove markdown formatting that might break
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # Remove bold
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)      # Remove italic
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # Remove links
+    text = re.sub(r'`([^`]+)`', r'\1', text)        # Remove code
+    return text
+
+def supabase_query(endpoint, method="GET", data=None):
+    """Query Supabase REST API"""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return []
+    
+    url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        if method == "GET":
+            response = requests.get(url, headers=headers)
+        elif method == "POST":
+            response = requests.post(url, headers=headers, json=data)
+        elif method == "PATCH":
+            response = requests.patch(url, headers=headers, json=data)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=headers)
+        else:
+            return []
         
-        <select id="role">
-            <option value="teacher">👨‍🏫 Teacher</option>
-            <option value="admin">🛡️ Super Admin</option>
-        </select>
-        <input type="text" id="teacherId" placeholder="Teacher ID" value="9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89">
-        <input type="password" id="password" placeholder="PIN / Password">
-        <button onclick="login()">Sign In</button>
-        <div id="loginError" class="error"></div>
-    </div>
-</div>
+        if response.status_code in [200, 201, 204]:
+            return response.json() if response.content else []
+        else:
+            logger.error(f"Supabase error {response.status_code}")
+            return []
+    except Exception as e:
+        logger.error(f"Request error: {e}")
+        return []
 
-<!-- MAIN APP -->
-<div id="appPage" class="app-container" style="display:none;">
-    <div class="header">
-        <h1>🎓 EduBot Dashboard</h1>
-        <p>Welcome, <span id="userName">Teacher</span>!</p>
-        <button onclick="logout()" style="background:#ef4444;">🚪 Logout</button>
-    </div>
-    
-    <div class="nav">
-        <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
-        <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
-        <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
-        <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
-        <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
-    </div>
-    
-    <div id="analytics" class="page">
-        <div class="stats" id="stats"><div class="loading">Loading...</div></div>
-    </div>
-    
-    <div id="notes" class="page" style="display:none">
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                <h2>📝 Daily Notes</h2>
-                <button onclick="openNoteModal()">+ Add Note</button>
-            </div>
-            <div id="notesTable"><div class="loading">Loading...</div></div>
-        </div>
-    </div>
-    
-    <div id="questions" class="page" style="display:none">
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                <h2>❓ Questions</h2>
-                <button onclick="openQuestionModal()">+ Add Question</button>
-            </div>
-            <div id="questionsTable"><div class="loading">Loading...</div></div>
-        </div>
-    </div>
-    
-    <div id="books" class="page" style="display:none">
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                <h2>📚 Books</h2>
-                <button onclick="openBookModal()">+ Add Book</button>
-            </div>
-            <div id="booksTable"><div class="loading">Loading...</div></div>
-        </div>
-    </div>
-    
-    <div id="students" class="page" style="display:none">
-        <div class="card">
-            <h2>👨‍🎓 Students</h2>
-            <div id="studentsTable"><div class="loading">Loading...</div></div>
-        </div>
-    </div>
-</div>
+def get_daily_note():
+    try:
+        today = date.today().isoformat()
+        result = supabase_query(f"daily_notes?teacher_id=eq.{TEACHER_ID}&note_date=eq.{today}&select=content")
+        if result and len(result) > 0:
+            return result[0]["content"]
+        return "📭 No note for today. Check back later!"
+    except:
+        return "Error fetching note"
 
-<!-- MODALS -->
-<div id="noteModal" class="modal">
-    <div class="modal-content">
-        <h3>Add Daily Note</h3>
-        <input type="text" id="noteTitle" placeholder="Title">
-        <input type="date" id="noteDate">
-        <textarea id="noteContent" rows="5" placeholder="Content..."></textarea>
-        <button onclick="saveNote()">Save Note</button>
-        <button onclick="closeModal('noteModal')">Cancel</button>
-    </div>
-</div>
+def get_all_notes():
+    try:
+        result = supabase_query(f"daily_notes?teacher_id=eq.{TEACHER_ID}&order=note_date.desc&limit=10&select=title,content,note_date")
+        if not result:
+            return "📭 No notes available"
+        text = "📚 *Recent Notes*\n\n"
+        for n in result:
+            text += f"📅 **{n['note_date']}**\n"
+            text += f"📝 {n['title']}\n"
+            text += f"{n['content'][:100]}...\n\n"
+        return text
+    except:
+        return "Error fetching notes"
 
-<div id="questionModal" class="modal">
-    <div class="modal-content">
-        <h3>Add Question</h3>
-        <textarea id="questionText" rows="3" placeholder="Question..."></textarea>
-        <textarea id="questionAnswer" rows="3" placeholder="Answer..."></textarea>
-        <button onclick="saveQuestion()">Save Question</button>
-        <button onclick="closeModal('questionModal')">Cancel</button>
-    </div>
-</div>
+def get_questions():
+    try:
+        result = supabase_query(f"questions?teacher_id=eq.{TEACHER_ID}&limit=5&select=id,question_text")
+        if not result:
+            return "📭 No questions available"
+        text = "❓ *Practice Questions*\n\n"
+        for i, q in enumerate(result, 1):
+            text += f"{i}. {q['question_text']}\n\n"
+        text += "\n💡 Type `/answer [number]` to see answer"
+        return text
+    except:
+        return "Error fetching questions"
 
-<div id="bookModal" class="modal">
-    <div class="modal-content">
-        <h3>Add Book</h3>
-        <input type="text" id="bookTitle" placeholder="Title *">
-        <input type="text" id="bookLink" placeholder="Link (optional)">
-        <button onclick="saveBook()">Save Book</button>
-        <button onclick="closeModal('bookModal')">Cancel</button>
-        <p style="font-size:0.75rem; color:#64748b; margin-top:10px;">* Title is required. Link is optional.</p>
-    </div>
-</div>
+def get_answer(num):
+    try:
+        result = supabase_query(f"questions?teacher_id=eq.{TEACHER_ID}&limit=5&select=question_text,answer")
+        if not result or num > len(result):
+            return "❓ Question not found"
+        q = result[num - 1]
+        return f"❓ *Question:* {q['question_text']}\n\n✅ *Answer:* {q['answer']}"
+    except:
+        return "Error fetching answer"
 
-<div id="toast" class="toast"></div>
+def get_books():
+    try:
+        result = supabase_query(f"books?teacher_id=eq.{TEACHER_ID}&select=title")
+        if not result:
+            return "📭 No books available"
+        text = "📚 *Available Books*\n\n"
+        for b in result:
+            text += f"📖 {b['title']}\n"
+        return text
+    except:
+        return "Error fetching books"
 
-<script>
-// ============================================
-// SUPABASE CREDENTIALS
-// ============================================
-const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
-const TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
-const TEACHER_PIN = "123456";
-const ADMIN_PASSWORD = "admin123";
-
-let currentUser = null;
-
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = `toast ${type} show`;
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
-
-async function api(path, options = {}) {
-    const url = `${SUPABASE_URL}/rest/v1/${path}`;
-    
-    const response = await fetch(url, {
-        headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`,
-            "Content-Type": "application/json"
-        },
-        ...options
-    });
-    
-    if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-            const errorText = await response.text();
-            if (errorText) errorMessage = errorText;
-        } catch(e) {}
-        throw new Error(errorMessage);
-    }
-    
-    if (options.method === "DELETE" || response.status === 204) {
-        return null;
-    }
-    
-    try {
-        return await response.json();
-    } catch(e) {
-        return [];
-    }
-}
-
-function login() {
-    const role = document.getElementById('role').value;
-    const teacherId = document.getElementById('teacherId').value;
-    const password = document.getElementById('password').value;
-    const errorDiv = document.getElementById('loginError');
-    
-    if (role === 'teacher') {
-        if (teacherId === TEACHER_ID && password === TEACHER_PIN) {
-            currentUser = { role: 'teacher', id: TEACHER_ID, name: 'Haileyesus' };
-            document.getElementById('userName').textContent = 'Haileyesus (Teacher)';
-            document.getElementById('loginPage').style.display = 'none';
-            document.getElementById('appPage').style.display = 'block';
-            loadAllData();
-            errorDiv.style.display = 'none';
-            showToast('Login successful!', 'success');
-        } else {
-            errorDiv.textContent = 'Invalid Teacher ID or PIN';
-            errorDiv.style.display = 'block';
+def save_student(telegram_user):
+    try:
+        existing = supabase_query(f"students?telegram_id=eq.{telegram_user.id}&select=id")
+        data = {
+            "telegram_id": telegram_user.id,
+            "username": telegram_user.username or "",
+            "first_name": telegram_user.first_name or "",
+            "teacher_id": TEACHER_ID
         }
-    } else if (role === 'admin') {
-        if (password === ADMIN_PASSWORD) {
-            currentUser = { role: 'admin', id: TEACHER_ID, name: 'Super Admin' };
-            document.getElementById('userName').textContent = 'Super Admin';
-            document.getElementById('loginPage').style.display = 'none';
-            document.getElementById('appPage').style.display = 'block';
-            loadAllData();
-            errorDiv.style.display = 'none';
-            showToast('Login successful!', 'success');
-        } else {
-            errorDiv.textContent = 'Invalid Admin Password';
-            errorDiv.style.display = 'block';
-        }
-    }
-}
+        if existing and len(existing) > 0:
+            supabase_query(f"students?telegram_id=eq.{telegram_user.id}", "PATCH", data)
+        else:
+            supabase_query("students", "POST", data)
+        return True
+    except:
+        return False
 
-function logout() {
-    currentUser = null;
-    document.getElementById('appPage').style.display = 'none';
-    document.getElementById('loginPage').style.display = 'block';
-    document.getElementById('teacherId').value = TEACHER_ID;
-    document.getElementById('password').value = '';
-}
+# ============ TELEGRAM HANDLERS ============
 
-async function loadAllData() {
-    await loadAnalytics();
-    await loadNotes();
-    await loadQuestions();
-    await loadBooks();
-    await loadStudents();
-}
-
-async function loadAnalytics() {
-    try {
-        const [students, notes, questions, books] = await Promise.all([
-            api(`students?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`daily_notes?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`questions?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`books?teacher_id=eq.${TEACHER_ID}&select=id`)
-        ]);
-        document.getElementById('stats').innerHTML = `
-            <div class="stat-card"><h3>Students</h3><div class="value">${students?.length || 0}</div></div>
-            <div class="stat-card"><h3>Notes</h3><div class="value">${notes?.length || 0}</div></div>
-            <div class="stat-card"><h3>Questions</h3><div class="value">${questions?.length || 0}</div></div>
-            <div class="stat-card"><h3>Books</h3><div class="value">${books?.length || 0}</div></div>
-        `;
-    } catch(e) {
-        console.error('Analytics error:', e);
-        document.getElementById('stats').innerHTML = `<div class="error">Error loading stats</div>`;
-    }
-}
-
-async function loadNotes() {
-    try {
-        const notes = await api(`daily_notes?teacher_id=eq.${TEACHER_ID}&order=note_date.desc&select=id,title,content,note_date`);
-        if (notes && notes.length > 0) {
-            document.getElementById('notesTable').innerHTML = `
-                 <table><thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead><tbody>
-                ${notes.map(n => `
-                    <tr>
-                        <td>${n.note_date}</td>
-                        <td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
-                        <td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td>
-                    </tr>
-                `).join('')}
-                </tbody></table>
-            `;
-        } else {
-            document.getElementById('notesTable').innerHTML = '<div class="loading">📭 No notes yet. Add your first note!</div>';
-        }
-    } catch(e) {
-        document.getElementById('notesTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
-}
-
-async function loadQuestions() {
-    try {
-        const questions = await api(`questions?teacher_id=eq.${TEACHER_ID}&select=id,question_text,answer`);
-        if (questions && questions.length > 0) {
-            document.getElementById('questionsTable').innerHTML = `
-                <table><thead><tr><th>Question</th><th>Answer</th><th>Actions</th></tr></thead><tbody>
-                ${questions.map(q => `
-                    <tr>
-                        <td>${escapeHtml(q.question_text)}</td>
-                        <td>${escapeHtml(q.answer)}</td>
-                        <td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td>
-                    </tr>
-                `).join('')}
-                </tbody></table>
-            `;
-        } else {
-            document.getElementById('questionsTable').innerHTML = '<div class="loading">❓ No questions yet. Add your first question!</div>';
-        }
-    } catch(e) {
-        document.getElementById('questionsTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
-}
-
-async function loadBooks() {
-    try {
-        // Only select columns that exist in your table
-        const books = await api(`books?teacher_id=eq.${TEACHER_ID}&select=id,title,file_url`);
-        if (books && books.length > 0) {
-            document.getElementById('booksTable').innerHTML = `
-                <table><thead><tr><th>Title</th><th>Link</th><th>Actions</th></tr></thead><tbody>
-                ${books.map(b => `
-                    <tr>
-                        <td><strong>${escapeHtml(b.title)}</strong></td>
-                        <td>${b.file_url ? `<a href="${b.file_url}" target="_blank" style="color:#6366f1">🔗 View</a>` : '-'}</td>
-                        <td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td>
-                    </tr>
-                `).join('')}
-                </tbody></table>
-            `;
-        } else {
-            document.getElementById('booksTable').innerHTML = '<div class="loading">📚 No books yet. Add your first book!</div>';
-        }
-    } catch(e) {
-        document.getElementById('booksTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
-}
-
-async function loadStudents() {
-    try {
-        const students = await api(`students?teacher_id=eq.${TEACHER_ID}&select=first_name,username,telegram_id,joined_at`);
-        if (students && students.length > 0) {
-            document.getElementById('studentsTable').innerHTML = `
-                <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead><tbody>
-                ${students.map(s => `
-                    <tr>
-                        <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
-                        <td>@${escapeHtml(s.username || '-')}</td>
-                        <td>${s.telegram_id}</td>
-                        <td>${new Date(s.joined_at).toLocaleDateString()}</td>
-                    </tr>
-                `).join('')}
-                </tbody></table>
-            `;
-        } else {
-            document.getElementById('studentsTable').innerHTML = '<div class="loading">👨‍🎓 No students yet</div>';
-        }
-    } catch(e) {
-        document.getElementById('studentsTable').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    }
-}
-
-async function saveNote() {
-    const data = {
-        teacher_id: TEACHER_ID,
-        title: document.getElementById('noteTitle').value,
-        content: document.getElementById('noteContent').value,
-        note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0]
-    };
-    if (!data.title || !data.content) {
-        showToast('Title and content are required', 'error');
-        return;
-    }
+async def start(update: Update, context):
+    user = update.effective_user
+    save_student(user)
     
-    try {
-        await api('daily_notes', { method: 'POST', body: JSON.stringify(data) });
-        closeModal('noteModal');
-        await loadNotes();
-        await loadAnalytics();
-        showToast('Note added successfully!', 'success');
-        document.getElementById('noteTitle').value = '';
-        document.getElementById('noteContent').value = '';
-    } catch(e) {
-        showToast('Error adding note: ' + e.message, 'error');
-    }
-}
-
-async function saveQuestion() {
-    const questionText = document.getElementById('questionText').value.trim();
-    const answer = document.getElementById('questionAnswer').value.trim();
+    keyboard = [
+        [InlineKeyboardButton("📝 Daily Note", callback_data="daily")],
+        [InlineKeyboardButton("❓ Questions", callback_data="questions")],
+        [InlineKeyboardButton("🤖 Ask AI", callback_data="ask")],
+        [InlineKeyboardButton("📚 Books", callback_data="books")],
+        [InlineKeyboardButton("📋 All Notes", callback_data="allnotes")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if (!questionText || !answer) {
-        showToast('Question and answer are required', 'error');
-        return;
-    }
+    await update.message.reply_text(
+        f"🎓 *Welcome {user.first_name}!*\n\nI'm EduBot - your AI learning assistant.\n\nClick the buttons below! 🚀",
+        parse_mode='Markdown',
+        reply_markup=reply_markup
+    )
+
+async def button_callback(update: Update, context):
+    query = update.callback_query
+    await query.answer()
     
-    const data = {
-        teacher_id: TEACHER_ID,
-        question_text: questionText,
-        answer: answer
-    };
+    if query.data == "daily":
+        note = get_daily_note()
+        await query.message.reply_text(f"📝 *Today's Note*\n\n{note}", parse_mode='Markdown')
+    elif query.data == "allnotes":
+        notes = get_all_notes()
+        await query.message.reply_text(notes, parse_mode='Markdown')
+    elif query.data == "questions":
+        q = get_questions()
+        await query.message.reply_text(q, parse_mode='Markdown')
+    elif query.data == "books":
+        books = get_books()
+        await query.message.reply_text(books, parse_mode='Markdown')
+    elif query.data == "ask":
+        await query.message.reply_text(
+            "🤖 *Ask me anything!*\n\nType: `/ask What is love?`",
+            parse_mode='Markdown'
+        )
+
+async def answer_command(update: Update, context):
+    if not context.args:
+        await update.message.reply_text("Example: `/answer 1`", parse_mode='Markdown')
+        return
+    try:
+        num = int(context.args[0])
+        ans = get_answer(num)
+        await update.message.reply_text(ans, parse_mode='Markdown')
+    except:
+        await update.message.reply_text("Please provide a valid number.")
+
+async def ask_command(update: Update, context):
+    if not context.args:
+        await update.message.reply_text(
+            "🤖 *Ask me anything!*\n\nExample: `/ask What is love?`",
+            parse_mode='Markdown'
+        )
+        return
     
-    try {
-        await api('questions', { method: 'POST', body: JSON.stringify(data) });
-        closeModal('questionModal');
-        await loadQuestions();
-        await loadAnalytics();
-        showToast('Question added successfully!', 'success');
-        document.getElementById('questionText').value = '';
-        document.getElementById('questionAnswer').value = '';
-    } catch(e) {
-        showToast('Error adding question: ' + e.message, 'error');
-    }
-}
-
-async function saveBook() {
-    const title = document.getElementById('bookTitle').value.trim();
-    const fileUrl = document.getElementById('bookLink').value.trim();
+    question = ' '.join(context.args)
+    thinking_msg = await update.message.reply_text("🤔 Thinking...")
     
-    if (!title) {
-        showToast('Title is required', 'error');
-        return;
-    }
+    if model is None:
+        await thinking_msg.edit_text("⚠️ AI service not configured. Please contact administrator.")
+        return
     
-    const data = {
-        teacher_id: TEACHER_ID,
-        title: title
-    };
+    try:
+        response = model.generate_content(question)
+        raw_answer = response.text if response.text else "No response generated."
+        
+        # Clean the answer to avoid Telegram parsing errors
+        clean_answer = clean_text(raw_answer)
+        
+        # Split long messages
+        if len(clean_answer) > 4000:
+            # Split into chunks
+            chunks = [clean_answer[i:i+4000] for i in range(0, len(clean_answer), 4000)]
+            await thinking_msg.delete()
+            for i, chunk in enumerate(chunks):
+                if i == 0:
+                    await update.message.reply_text(f"💡 *Answer:*\n\n{chunk}", parse_mode='Markdown')
+                else:
+                    await update.message.reply_text(chunk, parse_mode='Markdown')
+        else:
+            await thinking_msg.edit_text(f"💡 *Answer:*\n\n{clean_answer}", parse_mode='Markdown')
+            
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Gemini error: {error_msg}")
+        
+        if "quota" in error_msg.lower() or "rate" in error_msg.lower():
+            await thinking_msg.edit_text("⚠️ AI service is busy. Please wait a moment and try again.")
+        elif "safety" in error_msg.lower():
+            await thinking_msg.edit_text("⚠️ I can't answer that question. Please ask something else.")
+        elif "entities" in error_msg.lower():
+            # If still having parse errors, send without formatting
+            try:
+                response = model.generate_content(question)
+                await thinking_msg.edit_text(f"💡 Answer:\n\n{response.text}")
+            except:
+                await thinking_msg.edit_text("⚠️ Sorry, I couldn't process that question. Please try again.")
+        else:
+            await thinking_msg.edit_text(f"⚠️ Error: {error_msg[:100]}")
+
+async def error_handler(update: Update, context):
+    logger.error(f"Error: {context.error}")
+
+# ============ MAIN ============
+
+def main():
+    print("=" * 50)
+    print("🤖 EduBot Starting...")
+    print("=" * 50)
+    print(f"BOT_TOKEN: {'✅ Set' if BOT_TOKEN else '❌ Missing'}")
+    print(f"SUPABASE_URL: {'✅ Set' if SUPABASE_URL else '❌ Missing'}")
+    print(f"SUPABASE_KEY: {'✅ Set' if SUPABASE_KEY else '❌ Missing'}")
+    print(f"GEMINI_KEY: {'✅ Set' if GEMINI_KEY else '❌ Missing'}")
+    print(f"TEACHER_ID: {'✅ Set' if TEACHER_ID else '❌ Missing'}")
+    print("=" * 50)
     
-    // Only add file_url if provided
-    if (fileUrl) {
-        data.file_url = fileUrl;
-    }
+    if not BOT_TOKEN or not SUPABASE_URL or not SUPABASE_KEY:
+        print("❌ ERROR: Missing required credentials!")
+        return
     
-    try {
-        await api('books', { method: 'POST', body: JSON.stringify(data) });
-        closeModal('bookModal');
-        await loadBooks();
-        await loadAnalytics();
-        showToast('Book added successfully!', 'success');
-        document.getElementById('bookTitle').value = '';
-        document.getElementById('bookLink').value = '';
-    } catch(e) {
-        showToast('Error adding book: ' + e.message, 'error');
-    }
-}
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("answer", answer_command))
+    app.add_handler(CommandHandler("ask", ask_command))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_error_handler(error_handler)
+    
+    print("✅ Bot is running!")
+    print("Commands: /start, /ask, /answer")
+    print("=" * 50)
+    
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
-async function deleteNote(id) {
-    if (!confirm('Delete this note?')) return;
-    try {
-        await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' });
-        await loadNotes();
-        await loadAnalytics();
-        showToast('Note deleted', 'success');
-    } catch(e) {
-        showToast('Error: ' + e.message, 'error');
-    }
-}
-
-async function deleteQuestion(id) {
-    if (!confirm('Delete this question?')) return;
-    try {
-        await api(`questions?id=eq.${id}`, { method: 'DELETE' });
-        await loadQuestions();
-        await loadAnalytics();
-        showToast('Question deleted', 'success');
-    } catch(e) {
-        showToast('Error: ' + e.message, 'error');
-    }
-}
-
-async function deleteBook(id) {
-    if (!confirm('Delete this book?')) return;
-    try {
-        await api(`books?id=eq.${id}`, { method: 'DELETE' });
-        await loadBooks();
-        await loadAnalytics();
-        showToast('Book deleted', 'success');
-    } catch(e) {
-        showToast('Error: ' + e.message, 'error');
-    }
-}
-
-function showPage(page) {
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-    document.getElementById(page).style.display = 'block';
-    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-}
-
-function openNoteModal() { 
-    document.getElementById('noteDate').value = new Date().toISOString().split('T')[0];
-    document.getElementById('noteModal').style.display = 'flex'; 
-}
-function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
-function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
-function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
-</script>
-</body>
-</html>
+if __name__ == "__main__":
+    main()
