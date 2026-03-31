@@ -221,10 +221,11 @@
 <div id="bookModal" class="modal">
     <div class="modal-content">
         <h3>Add Book</h3>
-        <input type="text" id="bookTitle" placeholder="Title">
-        <input type="text" id="bookAuthor" placeholder="Author">
+        <input type="text" id="bookTitle" placeholder="Title *">
+        <input type="text" id="bookLink" placeholder="Link (optional)">
         <button onclick="saveBook()">Save Book</button>
         <button onclick="closeModal('bookModal')">Cancel</button>
+        <p style="font-size:0.75rem; color:#64748b; margin-top:10px;">* Title is required. Link is optional.</p>
     </div>
 </div>
 
@@ -272,7 +273,6 @@ async function api(path, options = {}) {
         throw new Error(errorMessage);
     }
     
-    // For DELETE or empty responses
     if (options.method === "DELETE" || response.status === 204) {
         return null;
     }
@@ -280,7 +280,6 @@ async function api(path, options = {}) {
     try {
         return await response.json();
     } catch(e) {
-        // Empty response - return empty array
         return [];
     }
 }
@@ -352,7 +351,7 @@ async function loadAnalytics() {
         `;
     } catch(e) {
         console.error('Analytics error:', e);
-        document.getElementById('stats').innerHTML = `<div class="error">Error loading stats: ${e.message}</div>`;
+        document.getElementById('stats').innerHTML = `<div class="error">Error loading stats</div>`;
     }
 }
 
@@ -361,7 +360,7 @@ async function loadNotes() {
         const notes = await api(`daily_notes?teacher_id=eq.${TEACHER_ID}&order=note_date.desc&select=id,title,content,note_date`);
         if (notes && notes.length > 0) {
             document.getElementById('notesTable').innerHTML = `
-                <table><thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead><tbody>
+                 <table><thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead><tbody>
                 ${notes.map(n => `
                     <tr>
                         <td>${n.note_date}</td>
@@ -404,14 +403,15 @@ async function loadQuestions() {
 
 async function loadBooks() {
     try {
-        const books = await api(`books?teacher_id=eq.${TEACHER_ID}&select=id,title,author`);
+        // Only select columns that exist in your table
+        const books = await api(`books?teacher_id=eq.${TEACHER_ID}&select=id,title,file_url`);
         if (books && books.length > 0) {
             document.getElementById('booksTable').innerHTML = `
-                <table><thead><tr><th>Title</th><th>Author</th><th>Actions</th></tr></thead><tbody>
+                <table><thead><tr><th>Title</th><th>Link</th><th>Actions</th></tr></thead><tbody>
                 ${books.map(b => `
                     <tr>
-                        <td>${escapeHtml(b.title)}</td>
-                        <td>${escapeHtml(b.author || '-')}</td>
+                        <td><strong>${escapeHtml(b.title)}</strong></td>
+                        <td>${b.file_url ? `<a href="${b.file_url}" target="_blank" style="color:#6366f1">🔗 View</a>` : '-'}</td>
                         <td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td>
                     </tr>
                 `).join('')}
@@ -454,14 +454,11 @@ async function saveNote() {
         teacher_id: TEACHER_ID,
         title: document.getElementById('noteTitle').value,
         content: document.getElementById('noteContent').value,
-        note_date: document.getElementById('noteDate').value
+        note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0]
     };
     if (!data.title || !data.content) {
         showToast('Title and content are required', 'error');
         return;
-    }
-    if (!data.note_date) {
-        data.note_date = new Date().toISOString().split('T')[0];
     }
     
     try {
@@ -493,7 +490,7 @@ async function saveQuestion() {
     };
     
     try {
-        const result = await api('questions', { method: 'POST', body: JSON.stringify(data) });
+        await api('questions', { method: 'POST', body: JSON.stringify(data) });
         closeModal('questionModal');
         await loadQuestions();
         await loadAnalytics();
@@ -507,7 +504,7 @@ async function saveQuestion() {
 
 async function saveBook() {
     const title = document.getElementById('bookTitle').value.trim();
-    const author = document.getElementById('bookAuthor').value.trim();
+    const fileUrl = document.getElementById('bookLink').value.trim();
     
     if (!title) {
         showToast('Title is required', 'error');
@@ -516,9 +513,13 @@ async function saveBook() {
     
     const data = {
         teacher_id: TEACHER_ID,
-        title: title,
-        author: author || null
+        title: title
     };
+    
+    // Only add file_url if provided
+    if (fileUrl) {
+        data.file_url = fileUrl;
+    }
     
     try {
         await api('books', { method: 'POST', body: JSON.stringify(data) });
@@ -527,7 +528,7 @@ async function saveBook() {
         await loadAnalytics();
         showToast('Book added successfully!', 'success');
         document.getElementById('bookTitle').value = '';
-        document.getElementById('bookAuthor').value = '';
+        document.getElementById('bookLink').value = '';
     } catch(e) {
         showToast('Error adding book: ' + e.message, 'error');
     }
