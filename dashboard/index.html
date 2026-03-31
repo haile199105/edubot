@@ -151,6 +151,7 @@
         .badge-warning { background: #f59e0b20; color: #f59e0b; }
         
         .empty { text-align: center; padding: 40px; color: #64748b; }
+        .error { color: #ef4444; text-align: center; padding: 20px; }
         
         @media (max-width: 768px) {
             .stats { grid-template-columns: repeat(2, 1fr); }
@@ -165,7 +166,7 @@
         <h1>🎓 EduBot Dashboard</h1>
         <p>Welcome, Haileyesus! Manage your AI learning assistant</p>
         <p style="font-size: 0.8rem; margin-top: 10px;">
-            🤖 Bot: Running on Railway | 📊 Dashboard: Vercel | 💾 Data: Supabase
+            🤖 Bot: Running | 📊 Dashboard: Vercel | 💾 Data: Supabase
         </p>
     </div>
     
@@ -178,7 +179,7 @@
     </div>
     
     <div id="analytics" class="page">
-        <div class="stats" id="stats"></div>
+        <div class="stats" id="stats"><div class="stat-card"><div class="value">Loading...</div></div></div>
         <div class="card">
             <div class="card-header">
                 <h2>📈 Recent Student Activity</h2>
@@ -231,7 +232,7 @@
     <div class="modal-content">
         <h3>📝 Add Daily Note</h3>
         <input type="text" id="noteTitle" placeholder="Title">
-        <input type="text" id="noteSubject" placeholder="Subject (e.g., Math, Science)">
+        <input type="text" id="noteSubject" placeholder="Subject">
         <input type="date" id="noteDate">
         <textarea id="noteContent" placeholder="Write your note content here..."></textarea>
         <select id="notePublished">
@@ -275,7 +276,7 @@
 
 <script>
 // ============================================
-// YOUR SUPABASE CREDENTIALS - FILLED
+// YOUR SUPABASE CREDENTIALS
 // ============================================
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
@@ -291,19 +292,20 @@ async function api(path, options = {}) {
         },
         ...options
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
     if (options.method === "DELETE") return null;
     return res.json();
 }
 
 async function loadAnalytics() {
     try {
-        const [students, notes, questions, books, activity] = await Promise.all([
+        const [students, notes, questions, books] = await Promise.all([
             api(`students?teacher_id=eq.${TEACHER_ID}&select=id`),
             api(`daily_notes?teacher_id=eq.${TEACHER_ID}&select=id`),
             api(`questions?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`books?teacher_id=eq.${TEACHER_ID}&select=id`),
-            api(`activity_log?teacher_id=eq.${TEACHER_ID}&order=created_at.desc&limit=10&select=action,created_at,students(first_name)`)
+            api(`books?teacher_id=eq.${TEACHER_ID}&select=id`)
         ]);
         
         document.getElementById('stats').innerHTML = `
@@ -312,138 +314,116 @@ async function loadAnalytics() {
             <div class="stat-card"><h3>Questions</h3><div class="value">${questions.length}</div></div>
             <div class="stat-card"><h3>Books</h3><div class="value">${books.length}</div></div>
         `;
-        
-        if (activity.length) {
-            document.getElementById('activity').innerHTML = `
-                <table>
-                    <thead><tr><th>Student</th><th>Action</th><th>Time</th></tr></thead>
-                    <tbody>
-                        ${activity.map(a => `
-                            <tr>
-                                <td>${a.students?.first_name || 'Anonymous'}</td>
-                                <td>${a.action}</td>
-                                <td>${new Date(a.created_at).toLocaleString()}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        } else {
-            document.getElementById('activity').innerHTML = '<div class="empty">📭 No activity yet</div>';
-        }
+        document.getElementById('activity').innerHTML = '<div class="empty">📭 No recent activity</div>';
     } catch(e) {
         console.error(e);
-        document.getElementById('stats').innerHTML = '<div class="empty">Error loading stats</div>';
+        document.getElementById('stats').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
 async function loadNotes() {
     try {
-        const notes = await api(`daily_notes?teacher_id=eq.${TEACHER_ID}&order=note_date.desc`);
+        const notes = await api(`daily_notes?teacher_id=eq.${TEACHER_ID}&order=note_date.desc&select=*`);
         if (notes.length) {
             document.getElementById('notes-table').innerHTML = `
-                <table>
-                    <thead><tr><th>Date</th><th>Title</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        ${notes.map(n => `
-                            <tr>
-                                <td>${n.note_date}</td>
-                                <td><strong>${n.title}</strong></td>
-                                <td>${n.subject || '-'}</td>
-                                <td><span class="badge ${n.is_published ? 'badge-success' : 'badge-warning'}">${n.is_published ? 'Published' : 'Draft'}</span></td>
-                                <td><button class="btn-small" onclick="deleteNote('${n.id}')">🗑 Delete</button></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
+                <table><thead><tr><th>Date</th><th>Title</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>
+                    ${notes.map(n => `
+                        <tr>
+                            <td>${n.note_date}</td>
+                            <td><strong>${n.title}</strong></td>
+                            <td>${n.subject || '-'}</td>
+                            <td><span class="badge ${n.is_published ? 'badge-success' : 'badge-warning'}">${n.is_published ? 'Published' : 'Draft'}</span></td>
+                            <td><button class="btn-small" onclick="deleteNote('${n.id}')">🗑 Delete</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
                 </table>
             `;
         } else {
             document.getElementById('notes-table').innerHTML = '<div class="empty">📭 No notes yet. Add your first note!</div>';
         }
     } catch(e) {
-        document.getElementById('notes-table').innerHTML = '<div class="empty">Error loading notes</div>';
+        document.getElementById('notes-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
 async function loadQuestions() {
     try {
-        const questions = await api(`questions?teacher_id=eq.${TEACHER_ID}&order=created_at.desc`);
+        const questions = await api(`questions?teacher_id=eq.${TEACHER_ID}&order=created_at.desc&select=*`);
         if (questions.length) {
             document.getElementById('questions-table').innerHTML = `
-                <table>
-                    <thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        ${questions.map(q => `
-                            <tr>
-                                <td>${q.question_text.substring(0, 60)}...</td>
-                                <td>${q.subject || '-'}</td>
-                                <td>${q.difficulty || 'medium'}</td>
-                                <td><button class="btn-small" onclick="deleteQuestion('${q.id}')">🗑 Delete</button></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
+                <table><thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead>
+                <tbody>
+                    ${questions.map(q => `
+                        <tr>
+                            <td>${q.question_text.substring(0, 60)}...</td>
+                            <td>${q.subject || '-'}</td>
+                            <td>${q.difficulty || 'medium'}</td>
+                            <td><button class="btn-small" onclick="deleteQuestion('${q.id}')">🗑 Delete</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
                 </table>
             `;
         } else {
             document.getElementById('questions-table').innerHTML = '<div class="empty">❓ No questions yet. Add your first question!</div>';
         }
     } catch(e) {
-        document.getElementById('questions-table').innerHTML = '<div class="empty">Error loading questions</div>';
+        document.getElementById('questions-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
 async function loadBooks() {
     try {
-        const books = await api(`books?teacher_id=eq.${TEACHER_ID}`);
+        const books = await api(`books?teacher_id=eq.${TEACHER_ID}&select=*`);
         if (books.length) {
             document.getElementById('books-table').innerHTML = `
-                <table>
-                    <thead><tr><th>Title</th><th>Author</th><th>Subject</th><th>Link</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        ${books.map(b => `
-                            <tr>
-                                <td><strong>${b.title}</strong></td>
-                                <td>${b.author || '-'}</td>
-                                <td>${b.subject || '-'}</td>
-                                <td>${b.file_url ? '<a href="'+b.file_url+'" target="_blank" style="color:#6366f1">🔗 Link</a>' : '-'}</td>
-                                <td><button class="btn-small" onclick="deleteBook('${b.id}')">🗑 Delete</button></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
+                <table><thead><tr><th>Title</th><th>Author</th><th>Subject</th><th>Link</th><th>Actions</th></tr></thead>
+                <tbody>
+                    ${books.map(b => `
+                        <tr>
+                            <td><strong>${b.title}</strong></td>
+                            <td>${b.author || '-'}</td>
+                            <td>${b.subject || '-'}</td>
+                            <td>${b.file_url ? `<a href="${b.file_url}" target="_blank" style="color:#6366f1">🔗 Link</a>` : '-'}</td>
+                            <td><button class="btn-small" onclick="deleteBook('${b.id}')">🗑 Delete</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
                 </table>
             `;
         } else {
             document.getElementById('books-table').innerHTML = '<div class="empty">📚 No books yet. Add your first book!</div>';
         }
     } catch(e) {
-        document.getElementById('books-table').innerHTML = '<div class="empty">Error loading books</div>';
+        document.getElementById('books-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
 async function loadStudents() {
     try {
-        const students = await api(`students?teacher_id=eq.${TEACHER_ID}&order=joined_at.desc`);
+        const students = await api(`students?teacher_id=eq.${TEACHER_ID}&order=joined_at.desc&select=*`);
         if (students.length) {
             document.getElementById('students-table').innerHTML = `
-                <table>
-                    <thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead>
-                    <tbody>
-                        ${students.map(s => `
-                            <tr>
-                                <td>${s.first_name || 'Anonymous'}</td>
-                                <td>@${s.username || '-'}</td>
-                                <td>${s.telegram_id}</td>
-                                <td>${new Date(s.joined_at).toLocaleDateString()}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
+                <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead>
+                <tbody>
+                    ${students.map(s => `
+                        <tr>
+                            <td>${s.first_name || 'Anonymous'}</td>
+                            <td>@${s.username || '-'}</td>
+                            <td>${s.telegram_id}</td>
+                            <td>${new Date(s.joined_at).toLocaleDateString()}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
                 </table>
             `;
         } else {
             document.getElementById('students-table').innerHTML = '<div class="empty">👨‍🎓 No students yet</div>';
         }
     } catch(e) {
-        document.getElementById('students-table').innerHTML = '<div class="empty">Error loading students</div>';
+        document.getElementById('students-table').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
 }
 
@@ -456,10 +436,7 @@ async function saveNote() {
         content: document.getElementById('noteContent').value,
         is_published: document.getElementById('notePublished').value === 'true'
     };
-    if (!data.title || !data.content) {
-        alert('Title and content are required');
-        return;
-    }
+    if (!data.title || !data.content) { alert('Title and content required'); return; }
     await api('daily_notes', { method: 'POST', body: JSON.stringify(data) });
     closeModal('noteModal');
     loadNotes();
@@ -475,10 +452,7 @@ async function saveQuestion() {
         explanation: document.getElementById('questionExplanation').value,
         is_active: true
     };
-    if (!data.question_text || !data.answer) {
-        alert('Question and answer are required');
-        return;
-    }
+    if (!data.question_text || !data.answer) { alert('Question and answer required'); return; }
     await api('questions', { method: 'POST', body: JSON.stringify(data) });
     closeModal('questionModal');
     loadQuestions();
@@ -494,10 +468,7 @@ async function saveBook() {
         file_url: document.getElementById('bookFileUrl').value,
         is_active: true
     };
-    if (!data.title) {
-        alert('Title is required');
-        return;
-    }
+    if (!data.title) { alert('Title required'); return; }
     await api('books', { method: 'POST', body: JSON.stringify(data) });
     closeModal('bookModal');
     loadBooks();
