@@ -12,59 +12,14 @@
             min-height: 100vh;
             color: #f1f5f9;
         }
-        
-        /* Login Page */
-        .login-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .login-card {
+        .login-container, .app-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .login-card, .card {
             background: #1e293b;
             border-radius: 24px;
-            padding: 40px;
-            max-width: 400px;
-            width: 100%;
+            padding: 30px;
             border: 1px solid #334155;
         }
-        .login-card h1 {
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 1.8rem;
-        }
-        .login-card p {
-            text-align: center;
-            color: #94a3b8;
-            margin-bottom: 30px;
-        }
-        .login-card input, .login-card select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            color: white;
-            font-size: 1rem;
-        }
-        .login-card button {
-            width: 100%;
-            padding: 12px;
-            background: #6366f1;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-        .login-card button:hover { background: #4f46e5; }
-        .error { color: #ef4444; text-align: center; margin-top: 15px; display: none; }
-        
-        /* Main App */
-        .app-container { display: none; }
-        .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .login-card { max-width: 400px; margin: 100px auto; }
         .header {
             background: linear-gradient(135deg, #6366f1, #4f46e5);
             padding: 30px;
@@ -84,9 +39,7 @@
             border-radius: 20px;
             border: 1px solid #334155;
         }
-        .stat-card h3 { font-size: 0.8rem; color: #94a3b8; }
         .stat-card .value { font-size: 2rem; font-weight: bold; color: #6366f1; }
-        
         .nav {
             display: flex;
             gap: 10px;
@@ -105,35 +58,25 @@
             background: #6366f1;
             color: white;
         }
-        
-        .card {
-            background: #1e293b;
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 25px;
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: white;
         }
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
-        th { color: #94a3b8; font-size: 0.8rem; }
-        
         button {
             background: #6366f1;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 10px 20px;
             border-radius: 10px;
             cursor: pointer;
         }
+        button:hover { background: #4f46e5; }
         .btn-small { padding: 4px 10px; font-size: 0.75rem; }
-        .btn-danger { background: #ef4444; }
-        
         .modal {
             display: none;
             position: fixed;
@@ -153,37 +96,10 @@
             max-width: 500px;
             width: 90%;
         }
-        .modal-content input, .modal-content textarea, .modal-content select {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            color: white;
-        }
-        
-        .status-connected {
-            background: #22c55e20;
-            color: #22c55e;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            display: inline-block;
-        }
-        .status-error {
-            background: #ef444420;
-            color: #ef4444;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            display: inline-block;
-        }
-        
-        @media (max-width: 768px) {
-            .stats { grid-template-columns: repeat(2, 1fr); }
-            th, td { font-size: 0.75rem; padding: 8px; }
-        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+        .error { color: #ef4444; text-align: center; margin-top: 15px; display: none; }
+        .success { color: #22c55e; text-align: center; margin-top: 15px; display: none; }
     </style>
 </head>
 <body>
@@ -191,85 +107,74 @@
 <!-- LOGIN PAGE -->
 <div id="loginPage" class="login-container">
     <div class="login-card">
-        <h1>🎓 EduBot Dashboard</h1>
-        <p>Sign in to manage your bot</p>
-        
-        <div style="text-align: center; margin-bottom: 15px;">
-            <span id="supabaseStatus" class="status-error">Checking Supabase...</span>
-        </div>
+        <h1 style="text-align:center;">🎓 EduBot Dashboard</h1>
+        <p style="text-align:center; color:#94a3b8;">Sign in to manage your bot</p>
         
         <select id="role">
             <option value="teacher">👨‍🏫 Teacher</option>
             <option value="admin">🛡️ Super Admin</option>
         </select>
-        
-        <input type="text" id="teacherId" placeholder="Teacher ID (for Teacher login)">
+        <input type="text" id="teacherId" placeholder="Teacher ID">
         <input type="password" id="password" placeholder="PIN / Password">
-        
         <button onclick="login()">Sign In</button>
         <div id="loginError" class="error"></div>
     </div>
 </div>
 
 <!-- MAIN APP -->
-<div id="appPage" class="app-container">
-    <div class="main-container">
-        <div class="header">
-            <h1>🎓 EduBot Dashboard</h1>
-            <p>Welcome, <span id="userName">Teacher</span>!</p>
-            <p><span id="dbStatus" class="status-connected">Connected to Supabase</span></p>
-            <button onclick="logout()" style="background: #ef4444; margin-top: 10px;">🚪 Logout</button>
-        </div>
-        
-        <div class="nav">
-            <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
-            <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
-            <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
-            <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
-            <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
-        </div>
-        
-        <div id="analytics" class="page">
-            <div class="stats" id="stats">
-                <div class="stat-card"><h3>Loading...</h3><div class="value">—</div></div>
+<div id="appPage" class="app-container" style="display:none;">
+    <div class="header">
+        <h1>🎓 EduBot Dashboard</h1>
+        <p>Welcome, <span id="userName">Teacher</span>!</p>
+        <button onclick="logout()" style="background:#ef4444;">🚪 Logout</button>
+    </div>
+    
+    <div class="nav">
+        <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
+        <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
+        <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
+        <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
+        <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
+    </div>
+    
+    <div id="analytics" class="page">
+        <div class="stats" id="stats"></div>
+    </div>
+    
+    <div id="notes" class="page" style="display:none">
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                <h2>📝 Daily Notes</h2>
+                <button onclick="openNoteModal()">+ Add Note</button>
             </div>
+            <div id="notesTable"></div>
         </div>
-        
-        <div id="notes" class="page" style="display:none">
-            <div class="card">
-                <div class="card-header">
-                    <h2>📝 Daily Notes</h2>
-                    <button onclick="openNoteModal()">+ Add Note</button>
-                </div>
-                <div id="notesTable">Loading...</div>
+    </div>
+    
+    <div id="questions" class="page" style="display:none">
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                <h2>❓ Questions</h2>
+                <button onclick="openQuestionModal()">+ Add Question</button>
             </div>
+            <div id="questionsTable"></div>
         </div>
-        
-        <div id="questions" class="page" style="display:none">
-            <div class="card">
-                <div class="card-header">
-                    <h2>❓ Questions</h2>
-                    <button onclick="openQuestionModal()">+ Add Question</button>
-                </div>
-                <div id="questionsTable">Loading...</div>
+    </div>
+    
+    <div id="books" class="page" style="display:none">
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                <h2>📚 Books</h2>
+                <button onclick="openBookModal()">+ Add Book</button>
             </div>
+            <div id="booksTable"></div>
         </div>
-        
-        <div id="books" class="page" style="display:none">
-            <div class="card">
-                <div class="card-header">
-                    <h2>📚 Books</h2>
-                    <button onclick="openBookModal()">+ Add Book</button>
-                </div>
-                <div id="booksTable">Loading...</div>
-            </div>
-        </div>
-        
-        <div id="students" class="page" style="display:none">
-            <div class="card">
-                <h2>👨‍🎓 Students</h2>
-                <div id="studentsTable">Loading...</div>
-            </div>
+    </div>
+    
+    <div id="students" class="page" style="display:none">
+        <div class="card">
+            <h2>👨‍🎓 Students</h2>
+            <div id="studentsTable"></div>
         </div>
     </div>
 </div>
@@ -277,9 +182,8 @@
 <!-- MODALS -->
 <div id="noteModal" class="modal">
     <div class="modal-content">
-        <h3>Add Note</h3>
+        <h3>Add Daily Note</h3>
         <input type="text" id="noteTitle" placeholder="Title">
-        <input type="text" id="noteSubject" placeholder="Subject">
         <input type="date" id="noteDate">
         <textarea id="noteContent" rows="5" placeholder="Content..."></textarea>
         <button onclick="saveNote()">Save</button>
@@ -292,12 +196,6 @@
         <h3>Add Question</h3>
         <textarea id="questionText" rows="3" placeholder="Question..."></textarea>
         <textarea id="questionAnswer" rows="3" placeholder="Answer..."></textarea>
-        <input type="text" id="questionSubject" placeholder="Subject">
-        <select id="questionDifficulty">
-            <option value="easy">Easy</option>
-            <option value="medium">Medium</option>
-            <option value="hard">Hard</option>
-        </select>
         <button onclick="saveQuestion()">Save</button>
         <button onclick="closeModal('questionModal')">Cancel</button>
     </div>
@@ -308,9 +206,6 @@
         <h3>Add Book</h3>
         <input type="text" id="bookTitle" placeholder="Title">
         <input type="text" id="bookAuthor" placeholder="Author">
-        <input type="text" id="bookSubject" placeholder="Subject">
-        <textarea id="bookDescription" rows="3" placeholder="Description..."></textarea>
-        <input type="url" id="bookFileUrl" placeholder="File URL">
         <button onclick="saveBook()">Save</button>
         <button onclick="closeModal('bookModal')">Cancel</button>
     </div>
@@ -318,46 +213,19 @@
 
 <script>
 // ============================================
-// SUPABASE CONNECTION - YOUR CREDENTIALS
+// SUPABASE CREDENTIALS
 // ============================================
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
-const VALID_TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
+const TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
 const TEACHER_PIN = "123456";
 const ADMIN_PASSWORD = "admin123";
 
-let currentTeacherId = null;
+let currentUser = null;
 
-// Test Supabase Connection
-async function testSupabaseConnection() {
-    try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/teachers?select=id&limit=1`, {
-            headers: {
-                "apikey": SUPABASE_KEY,
-                "Authorization": `Bearer ${SUPABASE_KEY}`
-            }
-        });
-        
-        if (response.ok) {
-            document.getElementById('supabaseStatus').innerHTML = '✅ Supabase Connected';
-            document.getElementById('supabaseStatus').className = 'status-connected';
-            console.log('Supabase connection successful');
-        } else {
-            document.getElementById('supabaseStatus').innerHTML = '❌ Supabase Connection Failed';
-            document.getElementById('supabaseStatus').className = 'status-error';
-            console.error('Supabase connection failed:', response.status);
-        }
-    } catch (error) {
-        document.getElementById('supabaseStatus').innerHTML = '❌ Cannot reach Supabase';
-        document.getElementById('supabaseStatus').className = 'status-error';
-        console.error('Supabase error:', error);
-    }
-}
-
-// API function
 async function api(path, options = {}) {
     const url = `${SUPABASE_URL}/rest/v1/${path}`;
-    const response = await fetch(url, {
+    const res = await fetch(url, {
         headers: {
             "apikey": SUPABASE_KEY,
             "Authorization": `Bearer ${SUPABASE_KEY}`,
@@ -366,29 +234,28 @@ async function api(path, options = {}) {
         ...options
     });
     
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
     }
-    
     if (options.method === "DELETE") return null;
-    if (response.status === 204) return [];
-    return response.json();
+    if (res.status === 204) return [];
+    return res.json();
 }
 
-// Login function
-async function login() {
+function login() {
     const role = document.getElementById('role').value;
     const teacherId = document.getElementById('teacherId').value;
     const password = document.getElementById('password').value;
     const errorDiv = document.getElementById('loginError');
     
     if (role === 'teacher') {
-        if (teacherId === VALID_TEACHER_ID && password === TEACHER_PIN) {
-            currentTeacherId = teacherId;
+        if (teacherId === TEACHER_ID && password === TEACHER_PIN) {
+            currentUser = { role: 'teacher', id: TEACHER_ID, name: 'Haileyesus' };
             document.getElementById('userName').textContent = 'Haileyesus (Teacher)';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('appPage').style.display = 'block';
-            await loadAllData();
+            loadAllData();
             errorDiv.style.display = 'none';
         } else {
             errorDiv.textContent = 'Invalid Teacher ID or PIN';
@@ -396,11 +263,11 @@ async function login() {
         }
     } else if (role === 'admin') {
         if (password === ADMIN_PASSWORD) {
-            currentTeacherId = VALID_TEACHER_ID;
+            currentUser = { role: 'admin', id: TEACHER_ID, name: 'Super Admin' };
             document.getElementById('userName').textContent = 'Super Admin';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('appPage').style.display = 'block';
-            await loadAllData();
+            loadAllData();
             errorDiv.style.display = 'none';
         } else {
             errorDiv.textContent = 'Invalid Admin Password';
@@ -410,9 +277,9 @@ async function login() {
 }
 
 function logout() {
-    currentTeacherId = null;
+    currentUser = null;
     document.getElementById('appPage').style.display = 'none';
-    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('loginPage').style.display = 'block';
     document.getElementById('teacherId').value = '';
     document.getElementById('password').value = '';
 }
@@ -428,212 +295,176 @@ async function loadAllData() {
 async function loadAnalytics() {
     try {
         const [students, notes, questions, books] = await Promise.all([
-            api(`students?teacher_id=eq.${VALID_TEACHER_ID}&select=id`),
-            api(`daily_notes?teacher_id=eq.${VALID_TEACHER_ID}&select=id`),
-            api(`questions?teacher_id=eq.${VALID_TEACHER_ID}&select=id`),
-            api(`books?teacher_id=eq.${VALID_TEACHER_ID}&select=id`)
+            api(`students?teacher_id=eq.${TEACHER_ID}&select=id`),
+            api(`daily_notes?teacher_id=eq.${TEACHER_ID}&select=id`),
+            api(`questions?teacher_id=eq.${TEACHER_ID}&select=id`),
+            api(`books?teacher_id=eq.${TEACHER_ID}&select=id`)
         ]);
-        
         document.getElementById('stats').innerHTML = `
-            <div class="stat-card"><h3>Total Students</h3><div class="value">${students.length || 0}</div></div>
-            <div class="stat-card"><h3>Total Notes</h3><div class="value">${notes.length || 0}</div></div>
-            <div class="stat-card"><h3>Questions</h3><div class="value">${questions.length || 0}</div></div>
-            <div class="stat-card"><h3>Books</h3><div class="value">${books.length || 0}</div></div>
+            <div class="stat-card"><h3>Students</h3><div class="value">${students.length}</div></div>
+            <div class="stat-card"><h3>Notes</h3><div class="value">${notes.length}</div></div>
+            <div class="stat-card"><h3>Questions</h3><div class="value">${questions.length}</div></div>
+            <div class="stat-card"><h3>Books</h3><div class="value">${books.length}</div></div>
         `;
-    } catch(error) {
-        console.error('Analytics error:', error);
-        document.getElementById('stats').innerHTML = '<div class="stat-card"><h3>Error loading data</h3><div class="value">—</div></div>';
+    } catch(e) {
+        console.error('Analytics error:', e);
     }
 }
 
 async function loadNotes() {
     try {
-        const notes = await api(`daily_notes?teacher_id=eq.${VALID_TEACHER_ID}&order=note_date.desc`);
-        if (notes && notes.length > 0) {
+        const notes = await api(`daily_notes?teacher_id=eq.${TEACHER_ID}&order=note_date.desc&select=id,title,content,note_date`);
+        if (notes.length) {
             document.getElementById('notesTable').innerHTML = `
-                <table>
-                    <thead><tr><th>Date</th><th>Title</th><th>Subject</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        ${notes.map(n => `
-                            <tr>
-                                <td>${n.note_date}</td>
-                                <td><strong>${escapeHtml(n.title)}</strong></td>
-                                <td>${escapeHtml(n.subject || '-')}</td>
-                                <td><button class="btn-small" onclick="deleteNote('${n.id}')">🗑 Delete</button></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <table><thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead><tbody>
+                ${notes.map(n => `
+                    <tr>
+                        <td>${n.note_date}</td>
+                        <td><strong>${escapeHtml(n.title)}</strong><br><small>${n.content.substring(0, 80)}...</small></td>
+                        <td><button class="btn-small" onclick="deleteNote('${n.id}')">Delete</button></td>
+                    </tr>
+                `).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('notesTable').innerHTML = '<p style="text-align:center;padding:40px;">📭 No notes yet. Add your first note!</p>';
+            document.getElementById('notesTable').innerHTML = '<p>No notes yet</p>';
         }
-    } catch(error) {
-        console.error('Notes error:', error);
-        document.getElementById('notesTable').innerHTML = '<p style="color:#ef4444;">Error loading notes. Check Supabase connection.</p>';
+    } catch(e) {
+        document.getElementById('notesTable').innerHTML = '<p>Error loading notes</p>';
     }
 }
 
 async function loadQuestions() {
     try {
-        const questions = await api(`questions?teacher_id=eq.${VALID_TEACHER_ID}&order=created_at.desc`);
-        if (questions && questions.length > 0) {
+        const questions = await api(`questions?teacher_id=eq.${TEACHER_ID}&select=id,question_text,answer`);
+        if (questions.length) {
             document.getElementById('questionsTable').innerHTML = `
-                <table>
-                    <thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        ${questions.map(q => `
-                            <tr>
-                                <td>${escapeHtml(q.question_text.substring(0, 60))}...</td>
-                                <td>${escapeHtml(q.subject || '-')}</td>
-                                <td>${escapeHtml(q.difficulty || 'medium')}</td>
-                                <td><button class="btn-small" onclick="deleteQuestion('${q.id}')">🗑 Delete</button></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <table><thead><tr><th>Question</th><th>Answer</th><th>Actions</th></tr></thead><tbody>
+                ${questions.map(q => `
+                    <tr>
+                        <td>${escapeHtml(q.question_text)}</td>
+                        <td>${escapeHtml(q.answer)}</td>
+                        <td><button class="btn-small" onclick="deleteQuestion('${q.id}')">Delete</button></td>
+                    </tr>
+                `).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('questionsTable').innerHTML = '<p style="text-align:center;padding:40px;">❓ No questions yet. Add your first question!</p>';
+            document.getElementById('questionsTable').innerHTML = '<p>No questions yet</p>';
         }
-    } catch(error) {
-        console.error('Questions error:', error);
-        document.getElementById('questionsTable').innerHTML = '<p style="color:#ef4444;">Error loading questions.</p>';
+    } catch(e) {
+        document.getElementById('questionsTable').innerHTML = '<p>Error loading questions</p>';
     }
 }
 
 async function loadBooks() {
     try {
-        const books = await api(`books?teacher_id=eq.${VALID_TEACHER_ID}`);
-        if (books && books.length > 0) {
+        const books = await api(`books?teacher_id=eq.${TEACHER_ID}&select=id,title,author`);
+        if (books.length) {
             document.getElementById('booksTable').innerHTML = `
-                <table>
-                    <thead><tr><th>Title</th><th>Author</th><th>Subject</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        ${books.map(b => `
-                            <tr>
-                                <td><strong>${escapeHtml(b.title)}</strong></td>
-                                <td>${escapeHtml(b.author || '-')}</td>
-                                <td>${escapeHtml(b.subject || '-')}</td>
-                                <td><button class="btn-small" onclick="deleteBook('${b.id}')">🗑 Delete</button></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <table><thead><tr><th>Title</th><th>Author</th><th>Actions</th></tr></thead><tbody>
+                ${books.map(b => `
+                    <tr>
+                        <td>${escapeHtml(b.title)}</td>
+                        <td>${escapeHtml(b.author || '-')}</td>
+                        <td><button class="btn-small" onclick="deleteBook('${b.id}')">Delete</button></td>
+                    </tr>
+                `).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('booksTable').innerHTML = '<p style="text-align:center;padding:40px;">📚 No books yet. Add your first book!</p>';
+            document.getElementById('booksTable').innerHTML = '<p>No books yet</p>';
         }
-    } catch(error) {
-        console.error('Books error:', error);
-        document.getElementById('booksTable').innerHTML = '<p style="color:#ef4444;">Error loading books.</p>';
+    } catch(e) {
+        document.getElementById('booksTable').innerHTML = '<p>Error loading books</p>';
     }
 }
 
 async function loadStudents() {
     try {
-        const students = await api(`students?teacher_id=eq.${VALID_TEACHER_ID}&order=joined_at.desc`);
-        if (students && students.length > 0) {
+        const students = await api(`students?teacher_id=eq.${TEACHER_ID}&select=first_name,username,telegram_id,joined_at`);
+        if (students.length) {
             document.getElementById('studentsTable').innerHTML = `
-                <table>
-                    <thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead>
-                    <tbody>
-                        ${students.map(s => `
-                            <tr>
-                                <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
-                                <td>@${escapeHtml(s.username || '-')}</td>
-                                <td>${s.telegram_id}</td>
-                                <td>${new Date(s.joined_at).toLocaleDateString()}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead><tbody>
+                ${students.map(s => `
+                    <tr>
+                        <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
+                        <td>@${escapeHtml(s.username || '-')}</td>
+                        <td>${s.telegram_id}</td>
+                        <td>${new Date(s.joined_at).toLocaleDateString()}</td>
+                    </tr>
+                `).join('')}
+                </tbody></table>
             `;
         } else {
-            document.getElementById('studentsTable').innerHTML = '<p style="text-align:center;padding:40px;">👨‍🎓 No students yet</p>';
+            document.getElementById('studentsTable').innerHTML = '<p>No students yet</p>';
         }
-    } catch(error) {
-        console.error('Students error:', error);
-        document.getElementById('studentsTable').innerHTML = '<p style="color:#ef4444;">Error loading students.</p>';
+    } catch(e) {
+        document.getElementById('studentsTable').innerHTML = '<p>Error loading students</p>';
     }
 }
 
 async function saveNote() {
     const data = {
-        teacher_id: VALID_TEACHER_ID,
+        teacher_id: TEACHER_ID,
         title: document.getElementById('noteTitle').value,
-        subject: document.getElementById('noteSubject').value,
-        note_date: document.getElementById('noteDate').value,
         content: document.getElementById('noteContent').value,
-        is_published: true
+        note_date: document.getElementById('noteDate').value
     };
-    
     if (!data.title || !data.content) {
-        alert('Title and content are required');
+        alert('Title and content required');
         return;
     }
-    
     try {
         await api('daily_notes', { method: 'POST', body: JSON.stringify(data) });
         closeModal('noteModal');
-        await loadNotes();
-        await loadAnalytics();
+        loadNotes();
+        loadAnalytics();
         alert('Note added successfully!');
-    } catch(error) {
-        alert('Error adding note: ' + error.message);
+    } catch(e) {
+        alert('Error adding note: ' + e.message);
     }
 }
 
 async function saveQuestion() {
     const data = {
-        teacher_id: VALID_TEACHER_ID,
+        teacher_id: TEACHER_ID,
         question_text: document.getElementById('questionText').value,
-        answer: document.getElementById('questionAnswer').value,
-        subject: document.getElementById('questionSubject').value,
-        difficulty: document.getElementById('questionDifficulty').value,
-        is_active: true
+        answer: document.getElementById('questionAnswer').value
     };
-    
     if (!data.question_text || !data.answer) {
-        alert('Question and answer are required');
+        alert('Question and answer required');
         return;
     }
-    
     try {
         await api('questions', { method: 'POST', body: JSON.stringify(data) });
         closeModal('questionModal');
-        await loadQuestions();
-        await loadAnalytics();
+        loadQuestions();
+        loadAnalytics();
         alert('Question added successfully!');
-    } catch(error) {
-        alert('Error adding question: ' + error.message);
+    } catch(e) {
+        alert('Error adding question: ' + e.message);
     }
 }
 
 async function saveBook() {
     const data = {
-        teacher_id: VALID_TEACHER_ID,
+        teacher_id: TEACHER_ID,
         title: document.getElementById('bookTitle').value,
-        author: document.getElementById('bookAuthor').value,
-        subject: document.getElementById('bookSubject').value,
-        description: document.getElementById('bookDescription').value,
-        file_url: document.getElementById('bookFileUrl').value,
-        is_active: true
+        author: document.getElementById('bookAuthor').value
     };
-    
     if (!data.title) {
-        alert('Title is required');
+        alert('Title required');
         return;
     }
-    
     try {
         await api('books', { method: 'POST', body: JSON.stringify(data) });
         closeModal('bookModal');
-        await loadBooks();
-        await loadAnalytics();
+        loadBooks();
+        loadAnalytics();
         alert('Book added successfully!');
-    } catch(error) {
-        alert('Error adding book: ' + error.message);
+    } catch(e) {
+        alert('Error adding book: ' + e.message);
     }
 }
 
@@ -641,10 +472,10 @@ async function deleteNote(id) {
     if (!confirm('Delete this note?')) return;
     try {
         await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' });
-        await loadNotes();
-        await loadAnalytics();
-    } catch(error) {
-        alert('Error deleting note: ' + error.message);
+        loadNotes();
+        loadAnalytics();
+    } catch(e) {
+        alert('Error: ' + e.message);
     }
 }
 
@@ -652,10 +483,10 @@ async function deleteQuestion(id) {
     if (!confirm('Delete this question?')) return;
     try {
         await api(`questions?id=eq.${id}`, { method: 'DELETE' });
-        await loadQuestions();
-        await loadAnalytics();
-    } catch(error) {
-        alert('Error deleting question: ' + error.message);
+        loadQuestions();
+        loadAnalytics();
+    } catch(e) {
+        alert('Error: ' + e.message);
     }
 }
 
@@ -663,18 +494,16 @@ async function deleteBook(id) {
     if (!confirm('Delete this book?')) return;
     try {
         await api(`books?id=eq.${id}`, { method: 'DELETE' });
-        await loadBooks();
-        await loadAnalytics();
-    } catch(error) {
-        alert('Error deleting book: ' + error.message);
+        loadBooks();
+        loadAnalytics();
+    } catch(e) {
+        alert('Error: ' + e.message);
     }
 }
 
 function showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(page).style.display = 'block';
-    
-    // Update active button
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
 }
@@ -693,9 +522,6 @@ function escapeHtml(str) {
         return m;
     });
 }
-
-// Initialize
-testSupabaseConnection();
 </script>
 </body>
 </html>
