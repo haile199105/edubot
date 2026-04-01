@@ -7,74 +7,28 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
             background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
             min-height: 100vh;
             color: #f1f5f9;
-        }
-        
-        /* Login Page */
-        .login-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
             padding: 20px;
         }
-        .login-card {
-            background: #1e293b;
-            border-radius: 24px;
-            padding: 40px;
-            max-width: 400px;
-            width: 100%;
-            border: 1px solid #334155;
-        }
-        .login-card h1 {
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 1.8rem;
-        }
-        .login-card p {
-            text-align: center;
-            color: #94a3b8;
-            margin-bottom: 30px;
-        }
-        .login-card input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            color: white;
-            font-size: 1rem;
-        }
-        .login-card button {
-            width: 100%;
-            padding: 12px;
-            background: #6366f1;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-        .login-card button:hover { background: #4f46e5; }
-        .error { color: #ef4444; text-align: center; margin-top: 15px; display: none; }
-        
-        /* Dashboard */
-        .dashboard { display: none; }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
         .header {
             background: linear-gradient(135deg, #6366f1, #4f46e5);
             padding: 30px;
             border-radius: 24px;
             margin-bottom: 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
+            text-align: center;
         }
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-top: 10px;
+        }
+        .status-connected { background: #22c55e20; color: #22c55e; }
+        .status-error { background: #ef444420; color: #ef4444; }
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -86,9 +40,9 @@
             padding: 20px;
             border-radius: 20px;
             border: 1px solid #334155;
+            text-align: center;
         }
         .stat-card .value { font-size: 2rem; font-weight: bold; color: #6366f1; }
-        
         .nav {
             display: flex;
             gap: 10px;
@@ -109,7 +63,6 @@
             background: #6366f1;
             color: white;
         }
-        
         .card {
             background: #1e293b;
             border-radius: 20px;
@@ -122,12 +75,11 @@
             justify-content: space-between;
             margin-bottom: 20px;
             flex-wrap: wrap;
+            gap: 15px;
         }
-        
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
-        th { color: #94a3b8; font-size: 0.8rem; }
-        
+        th { color: #94a3b8; }
         button {
             background: #6366f1;
             color: white;
@@ -138,7 +90,15 @@
         }
         .btn-small { padding: 4px 10px; font-size: 0.75rem; }
         .btn-danger { background: #ef4444; }
-        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: white;
+        }
         .modal {
             display: none;
             position: fixed;
@@ -158,16 +118,7 @@
             max-width: 500px;
             width: 90%;
         }
-        .modal-content input, .modal-content textarea {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            color: white;
-        }
-        
+        .empty { text-align: center; padding: 40px; color: #64748b; }
         .toast {
             position: fixed;
             bottom: 20px;
@@ -176,119 +127,69 @@
             border-left: 4px solid #22c55e;
             padding: 12px 20px;
             border-radius: 10px;
-            z-index: 2000;
             display: none;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-        }
-        .status-connected { background: #22c55e20; color: #22c55e; }
-        .status-error { background: #ef444420; color: #ef4444; }
-        
-        @media (max-width: 768px) {
-            .stats { grid-template-columns: repeat(2, 1fr); }
-            th, td { font-size: 0.7rem; padding: 8px; }
         }
     </style>
 </head>
 <body>
-
-<!-- LOGIN PAGE -->
-<div id="loginPage" class="login-container">
-    <div class="login-card">
+<div class="container">
+    <div class="header">
         <h1>🎓 EduBot Dashboard</h1>
-        <p>Sign in to manage your bot</p>
-        
-        <div style="text-align: center; margin-bottom: 15px;">
-            <span id="dbStatus" class="status-badge status-error">Checking connection...</span>
-        </div>
-        
-        <input type="email" id="loginEmail" placeholder="Email" value="haileyesusshibru19@gmail.com">
-        <input type="password" id="loginPassword" placeholder="Password">
-        <button onclick="login()">Sign In</button>
-        <div id="loginError" class="error"></div>
+        <p>Manage your AI learning assistant</p>
+        <div id="connectionStatus" class="status status-error">Checking connection...</div>
     </div>
-</div>
-
-<!-- MAIN DASHBOARD -->
-<div id="dashboard" class="dashboard">
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1>🎓 EduBot Dashboard</h1>
-                <p>Manage your learning assistant</p>
+    
+    <div class="nav">
+        <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
+        <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
+        <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
+        <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
+        <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
+    </div>
+    
+    <div id="analytics" class="page">
+        <div class="stats" id="stats"></div>
+    </div>
+    
+    <div id="notes" class="page" style="display:none">
+        <div class="card">
+            <div class="card-header">
+                <h2>📝 Daily Notes</h2>
+                <button onclick="openNoteModal()">+ Add Note</button>
             </div>
-            <div>
-                <span id="dashboardStatus" class="status-badge status-connected">Connected</span>
-                <button onclick="logout()" style="background:#ef4444; margin-left:10px;">Logout</button>
-            </div>
+            <div id="notesTable"></div>
         </div>
-        
-        <div class="nav">
-            <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
-            <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
-            <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
-            <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
-            <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
-        </div>
-        
-        <!-- Analytics Page -->
-        <div id="analytics" class="page">
-            <div class="stats" id="stats"></div>
-            <div class="card">
-                <h3>📈 Quick Stats</h3>
-                <div id="activityList"></div>
+    </div>
+    
+    <div id="questions" class="page" style="display:none">
+        <div class="card">
+            <div class="card-header">
+                <h2>❓ Questions</h2>
+                <button onclick="openQuestionModal()">+ Add Question</button>
             </div>
+            <div id="questionsTable"></div>
         </div>
-        
-        <!-- Notes Page -->
-        <div id="notes" class="page" style="display:none">
-            <div class="card">
-                <div class="card-header">
-                    <h2>📝 Daily Notes</h2>
-                    <button onclick="openNoteModal()">+ Add Note</button>
-                </div>
-                <div id="notesTable">Loading...</div>
+    </div>
+    
+    <div id="books" class="page" style="display:none">
+        <div class="card">
+            <div class="card-header">
+                <h2>📚 Books</h2>
+                <button onclick="openBookModal()">+ Add Book</button>
             </div>
+            <div id="booksTable"></div>
         </div>
-        
-        <!-- Questions Page -->
-        <div id="questions" class="page" style="display:none">
-            <div class="card">
-                <div class="card-header">
-                    <h2>❓ Questions</h2>
-                    <button onclick="openQuestionModal()">+ Add Question</button>
-                </div>
-                <div id="questionsTable">Loading...</div>
-            </div>
-        </div>
-        
-        <!-- Books Page -->
-        <div id="books" class="page" style="display:none">
-            <div class="card">
-                <div class="card-header">
-                    <h2>📚 Books</h2>
-                    <button onclick="openBookModal()">+ Add Book</button>
-                </div>
-                <div id="booksTable">Loading...</div>
-            </div>
-        </div>
-        
-        <!-- Students Page -->
-        <div id="students" class="page" style="display:none">
-            <div class="card">
-                <h2>👨‍🎓 Students</h2>
-                <div id="studentsTable">Loading...</div>
-            </div>
+    </div>
+    
+    <div id="students" class="page" style="display:none">
+        <div class="card">
+            <h2>👨‍🎓 Students</h2>
+            <div id="studentsTable"></div>
         </div>
     </div>
 </div>
 
-<!-- MODALS -->
+<!-- Modals -->
 <div id="noteModal" class="modal">
     <div class="modal-content">
         <h3>Add Note</h3>
@@ -314,7 +215,7 @@
     <div class="modal-content">
         <h3>Add Book</h3>
         <input type="text" id="bookTitle" placeholder="Title">
-        <input type="text" id="bookAuthor" placeholder="Author">
+        <input type="text" id="bookAuthor" placeholder="Author (optional)">
         <button onclick="saveBook()">Save</button>
         <button onclick="closeModal('bookModal')">Cancel</button>
     </div>
@@ -323,395 +224,180 @@
 <div id="toast" class="toast"></div>
 
 <script>
-// ============================================
-// SUPABASE CONFIGURATION
-// ============================================
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
 const TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
 
-let currentUser = null;
-
-// Helper Functions
-function showToast(message, type = 'success') {
+function showToast(msg) {
     const toast = document.getElementById('toast');
-    toast.textContent = message;
+    toast.textContent = msg;
     toast.style.display = 'block';
     setTimeout(() => toast.style.display = 'none', 3000);
 }
 
-// Supabase API Helper
-async function supabaseApi(table, options = {}) {
+async function api(table, options = {}) {
     let url = `${SUPABASE_URL}/rest/v1/${table}`;
-    const headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
-        "Content-Type": "application/json"
-    };
+    if (options.filter) url += `?${options.filter.column}=eq.${options.filter.value}`;
+    if (options.order) url += `${url.includes('?') ? '&' : '?'}order=${options.order.column}.desc`;
     
-    if (options.filter) {
-        url += `?${options.filter.column}=eq.${options.filter.value}`;
-    }
-    if (options.order) {
-        url += `&order=${options.order.column}.desc`;
-    }
-    
-    const fetchOptions = { method: options.method || 'GET', headers };
-    if (options.data) fetchOptions.body = JSON.stringify(options.data);
-    
-    const response = await fetch(url, fetchOptions);
-    
-    if (!response.ok && response.status !== 204) {
-        const error = await response.text();
-        throw new Error(error);
-    }
-    
-    if (response.status === 204) return [];
-    return response.json();
+    const res = await fetch(url, {
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+        method: options.method || 'GET',
+        body: options.data ? JSON.stringify(options.data) : undefined
+    });
+    if (!res.ok && res.status !== 204) throw new Error(await res.text());
+    if (res.status === 204) return [];
+    return res.json();
 }
 
-// Test Supabase Connection
 async function testConnection() {
     try {
-        const result = await supabaseApi('teachers', { filter: { column: 'id', value: TEACHER_ID } });
+        const result = await api('teachers', { filter: { column: 'id', value: TEACHER_ID } });
         if (result && result.length > 0) {
-            document.getElementById('dbStatus').innerHTML = '✅ Connected to Supabase';
-            document.getElementById('dbStatus').className = 'status-badge status-connected';
+            document.getElementById('connectionStatus').innerHTML = '✅ Connected to Supabase';
+            document.getElementById('connectionStatus').className = 'status status-connected';
             return true;
         } else {
-            document.getElementById('dbStatus').innerHTML = '❌ Connection failed - Teacher not found';
-            document.getElementById('dbStatus').className = 'status-badge status-error';
+            document.getElementById('connectionStatus').innerHTML = '⚠️ Teacher not found';
             return false;
         }
-    } catch (error) {
-        document.getElementById('dbStatus').innerHTML = `❌ Connection error: ${error.message}`;
-        document.getElementById('dbStatus').className = 'status-badge status-error';
+    } catch(e) {
+        document.getElementById('connectionStatus').innerHTML = `❌ Error: ${e.message}`;
         return false;
     }
 }
 
-// Login Function (Simple PIN-based for now)
-function login() {
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-    const errorDiv = document.getElementById('loginError');
-    
-    // Simple authentication for now
-    if (email === 'haileyesusshibru19@gmail.com' && password === 'EduBot2024!') {
-        currentUser = { id: TEACHER_ID, email: email, name: 'Haileyesus' };
-        document.getElementById('loginPage').style.display = 'none';
-        document.getElementById('dashboard').style.display = 'block';
-        loadAllData();
-        errorDiv.style.display = 'none';
-        showToast('Login successful!');
-    } else {
-        errorDiv.textContent = 'Invalid email or password';
-        errorDiv.style.display = 'block';
-    }
-}
-
-function logout() {
-    currentUser = null;
-    document.getElementById('dashboard').style.display = 'none';
-    document.getElementById('loginPage').style.display = 'flex';
-}
-
-// Load Data Functions
-async function loadAllData() {
-    await loadAnalytics();
+async function loadAll() {
+    await loadStats();
     await loadNotes();
     await loadQuestions();
     await loadBooks();
     await loadStudents();
 }
 
-async function loadAnalytics() {
-    try {
-        const [students, notes, questions, books] = await Promise.all([
-            supabaseApi('students', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
-            supabaseApi('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
-            supabaseApi('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
-            supabaseApi('books', { filter: { column: 'teacher_id', value: TEACHER_ID } })
-        ]);
-        
-        document.getElementById('stats').innerHTML = `
-            <div class="stat-card"><h3>Students</h3><div class="value">${students?.length || 0}</div></div>
-            <div class="stat-card"><h3>Notes</h3><div class="value">${notes?.length || 0}</div></div>
-            <div class="stat-card"><h3>Questions</h3><div class="value">${questions?.length || 0}</div></div>
-            <div class="stat-card"><h3>Books</h3><div class="value">${books?.length || 0}</div></div>
-        `;
-        
-        document.getElementById('activityList').innerHTML = `
-            <p>✅ System is ready!</p>
-            <p>📝 You have ${notes?.length || 0} notes</p>
-            <p>❓ You have ${questions?.length || 0} questions</p>
-            <p>📚 You have ${books?.length || 0} books</p>
-            <p>👨‍🎓 ${students?.length || 0} students registered</p>
-        `;
-    } catch (error) {
-        console.error('Analytics error:', error);
-        document.getElementById('stats').innerHTML = '<div class="stat-card"><h3>Error loading data</h3><div class="value">—</div></div>';
-    }
+async function loadStats() {
+    const [students, notes, questions, books] = await Promise.all([
+        api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
+        api('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
+        api('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
+        api('books', { filter: { column: 'teacher_id', value: TEACHER_ID } })
+    ]);
+    document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><h3>Students</h3><div class="value">${students?.length || 0}</div></div>
+        <div class="stat-card"><h3>Notes</h3><div class="value">${notes?.length || 0}</div></div>
+        <div class="stat-card"><h3>Questions</h3><div class="value">${questions?.length || 0}</div></div>
+        <div class="stat-card"><h3>Books</h3><div class="value">${books?.length || 0}</div></div>
+    `;
 }
 
 async function loadNotes() {
-    try {
-        const notes = await supabaseApi('daily_notes', { 
-            filter: { column: 'teacher_id', value: TEACHER_ID },
-            order: { column: 'note_date' }
-        });
-        
-        if (notes && notes.length > 0) {
-            document.getElementById('notesTable').innerHTML = `
-                <thead><tr><th>Date</th><th>Title</th><th>Actions</th> </thead>
-                <tbody>
-                    ${notes.map(n => `
-                        <tr>
-                            <td>${n.note_date}</td>
-                            <td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
-                            <td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-        } else {
-            document.getElementById('notesTable').innerHTML = '<p>No notes yet. Add your first note!</p>';
-        }
-    } catch (error) {
-        document.getElementById('notesTable').innerHTML = `<p>Error: ${error.message}</p>`;
+    const notes = await api('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID }, order: { column: 'note_date' } });
+    if (notes?.length) {
+        document.getElementById('notesTable').innerHTML = `
+            <thead> <th>Date</th><th>Title</th><th>Actions</th> </thead>
+            <tbody>${notes.map(n => `
+                <tr><td>${n.note_date}</td><td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
+                <td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td></tr>
+            `).join('')}</tbody>
+        `;
+    } else {
+        document.getElementById('notesTable').innerHTML = '<div class="empty">📭 No notes yet</div>';
     }
 }
 
 async function loadQuestions() {
-    try {
-        const questions = await supabaseApi('questions', { 
-            filter: { column: 'teacher_id', value: TEACHER_ID },
-            order: { column: 'created_at' }
-        });
-        
-        if (questions && questions.length > 0) {
-            document.getElementById('questionsTable').innerHTML = `
-                <thead> <tr><th>Question</th><th>Answer</th><th>Actions</th></tr> </thead>
-                <tbody>
-                    ${questions.map(q => `
-                        <tr>
-                            <td>${escapeHtml(q.question_text.substring(0, 60))}...</td>
-                            <td>${escapeHtml(q.answer.substring(0, 40))}...</td>
-                            <td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-        } else {
-            document.getElementById('questionsTable').innerHTML = '<p>No questions yet. Add your first question!</p>';
-        }
-    } catch (error) {
-        document.getElementById('questionsTable').innerHTML = `<p>Error: ${error.message}</p>`;
+    const questions = await api('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    if (questions?.length) {
+        document.getElementById('questionsTable').innerHTML = `
+            <thead><th>Question</th><th>Answer</th><th>Actions</th></thead>
+            <tbody>${questions.map(q => `
+                <tr><td>${escapeHtml(q.question_text.substring(0, 60))}...</td>
+                <td>${escapeHtml(q.answer.substring(0, 40))}...</td>
+                <td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td></tr>
+            `).join('')}</tbody>
+        `;
+    } else {
+        document.getElementById('questionsTable').innerHTML = '<div class="empty">❓ No questions yet</div>';
     }
 }
 
 async function loadBooks() {
-    try {
-        const books = await supabaseApi('books', { filter: { column: 'teacher_id', value: TEACHER_ID } });
-        
-        if (books && books.length > 0) {
-            document.getElementById('booksTable').innerHTML = `
-                <thead> <tr><th>Title</th><th>Author</th><th>Actions</th></tr> </thead>
-                <tbody>
-                    ${books.map(b => `
-                        <tr>
-                            <td><strong>${escapeHtml(b.title)}</strong></td>
-                            <td>${escapeHtml(b.author || '-')}</td>
-                            <td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-        } else {
-            document.getElementById('booksTable').innerHTML = '<p>No books yet. Add your first book!</p>';
-        }
-    } catch (error) {
-        document.getElementById('booksTable').innerHTML = `<p>Error: ${error.message}</p>`;
+    const books = await api('books', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    if (books?.length) {
+        document.getElementById('booksTable').innerHTML = `
+            <thead><th>Title</th><th>Author</th><th>Actions</th></thead>
+            <tbody>${books.map(b => `
+                <tr><td><strong>${escapeHtml(b.title)}</strong></td>
+                <td>${escapeHtml(b.author || '-')}</td>
+                <td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td></tr>
+            `).join('')}</tbody>
+        `;
+    } else {
+        document.getElementById('booksTable').innerHTML = '<div class="empty">📚 No books yet</div>';
     }
 }
 
 async function loadStudents() {
-    try {
-        const students = await supabaseApi('students', { filter: { column: 'teacher_id', value: TEACHER_ID } });
-        
-        if (students && students.length > 0) {
-            document.getElementById('studentsTable').innerHTML = `
-                <thead> <tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr> </thead>
-                <tbody>
-                    ${students.map(s => `
-                        <tr>
-                            <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
-                            <td>@${escapeHtml(s.username || '-')}</td>
-                            <td>${s.telegram_id}</td>
-                            <td>${new Date(s.joined_at).toLocaleDateString()}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-        } else {
-            document.getElementById('studentsTable').innerHTML = '<p>No students yet</p>';
-        }
-    } catch (error) {
-        document.getElementById('studentsTable').innerHTML = `<p>Error: ${error.message}</p>`;
+    const students = await api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    if (students?.length) {
+        document.getElementById('studentsTable').innerHTML = `
+            <thead><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></thead>
+            <tbody>${students.map(s => `
+                <tr><td>${escapeHtml(s.first_name || 'Anonymous')}</td>
+                <td>@${escapeHtml(s.username || '-')}</td>
+                <td>${s.telegram_id}</td>
+                <td>${new Date(s.joined_at).toLocaleDateString()}</td></tr>
+            `).join('')}</tbody>
+        `;
+    } else {
+        document.getElementById('studentsTable').innerHTML = '<div class="empty">👨‍🎓 No students yet</div>';
     }
 }
 
-// Save Functions
 async function saveNote() {
-    const data = {
-        teacher_id: TEACHER_ID,
-        title: document.getElementById('noteTitle').value,
-        content: document.getElementById('noteContent').value,
-        note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0]
-    };
-    
-    if (!data.title || !data.content) {
-        showToast('Title and content required', 'error');
-        return;
-    }
-    
-    try {
-        await supabaseApi('daily_notes', { method: 'POST', data });
-        closeModal('noteModal');
-        loadNotes();
-        loadAnalytics();
-        showToast('Note added!');
-        document.getElementById('noteTitle').value = '';
-        document.getElementById('noteContent').value = '';
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
-    }
+    const data = { teacher_id: TEACHER_ID, title: document.getElementById('noteTitle').value, content: document.getElementById('noteContent').value, note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0] };
+    if (!data.title || !data.content) { showToast('Title and content required'); return; }
+    await api('daily_notes', { method: 'POST', data });
+    closeModal('noteModal');
+    await loadAll();
+    showToast('Note added!');
 }
 
 async function saveQuestion() {
-    const data = {
-        teacher_id: TEACHER_ID,
-        question_text: document.getElementById('questionText').value,
-        answer: document.getElementById('questionAnswer').value
-    };
-    
-    if (!data.question_text || !data.answer) {
-        showToast('Question and answer required', 'error');
-        return;
-    }
-    
-    try {
-        await supabaseApi('questions', { method: 'POST', data });
-        closeModal('questionModal');
-        loadQuestions();
-        loadAnalytics();
-        showToast('Question added!');
-        document.getElementById('questionText').value = '';
-        document.getElementById('questionAnswer').value = '';
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
-    }
+    const data = { teacher_id: TEACHER_ID, question_text: document.getElementById('questionText').value, answer: document.getElementById('questionAnswer').value };
+    if (!data.question_text || !data.answer) { showToast('Question and answer required'); return; }
+    await api('questions', { method: 'POST', data });
+    closeModal('questionModal');
+    await loadAll();
+    showToast('Question added!');
 }
 
 async function saveBook() {
-    const data = {
-        teacher_id: TEACHER_ID,
-        title: document.getElementById('bookTitle').value,
-        author: document.getElementById('bookAuthor').value
-    };
-    
-    if (!data.title) {
-        showToast('Title required', 'error');
-        return;
-    }
-    
-    try {
-        await supabaseApi('books', { method: 'POST', data });
-        closeModal('bookModal');
-        loadBooks();
-        loadAnalytics();
-        showToast('Book added!');
-        document.getElementById('bookTitle').value = '';
-        document.getElementById('bookAuthor').value = '';
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
-    }
+    const data = { teacher_id: TEACHER_ID, title: document.getElementById('bookTitle').value, author: document.getElementById('bookAuthor').value || null };
+    if (!data.title) { showToast('Title required'); return; }
+    await api('books', { method: 'POST', data });
+    closeModal('bookModal');
+    await loadAll();
+    showToast('Book added!');
 }
 
-// Delete Functions
-async function deleteNote(id) {
-    if (!confirm('Delete this note?')) return;
-    try {
-        await supabaseApi(`daily_notes?id=eq.${id}`, { method: 'DELETE' });
-        loadNotes();
-        loadAnalytics();
-        showToast('Note deleted');
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
-    }
-}
+async function deleteNote(id) { if (confirm('Delete?')) { await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' }); await loadAll(); showToast('Deleted'); } }
+async function deleteQuestion(id) { if (confirm('Delete?')) { await api(`questions?id=eq.${id}`, { method: 'DELETE' }); await loadAll(); showToast('Deleted'); } }
+async function deleteBook(id) { if (confirm('Delete?')) { await api(`books?id=eq.${id}`, { method: 'DELETE' }); await loadAll(); showToast('Deleted'); } }
 
-async function deleteQuestion(id) {
-    if (!confirm('Delete this question?')) return;
-    try {
-        await supabaseApi(`questions?id=eq.${id}`, { method: 'DELETE' });
-        loadQuestions();
-        loadAnalytics();
-        showToast('Question deleted');
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
-    }
-}
-
-async function deleteBook(id) {
-    if (!confirm('Delete this book?')) return;
-    try {
-        await supabaseApi(`books?id=eq.${id}`, { method: 'DELETE' });
-        loadBooks();
-        loadAnalytics();
-        showToast('Book deleted');
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
-    }
-}
-
-// UI Functions
 function showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(page).style.display = 'block';
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
 }
+function openNoteModal() { document.getElementById('noteDate').value = new Date().toISOString().split('T')[0]; document.getElementById('noteModal').style.display = 'flex'; }
+function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
+function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
-function openNoteModal() {
-    document.getElementById('noteDate').value = new Date().toISOString().split('T')[0];
-    document.getElementById('noteModal').style.display = 'flex';
-}
-
-function openQuestionModal() {
-    document.getElementById('questionModal').style.display = 'flex';
-}
-
-function openBookModal() {
-    document.getElementById('bookModal').style.display = 'flex';
-}
-
-function closeModal(id) {
-    document.getElementById(id).style.display = 'none';
-}
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
-
-// Initialize
-testConnection();
+testConnection().then(connected => { if (connected) loadAll(); });
 </script>
 </body>
 </html>
