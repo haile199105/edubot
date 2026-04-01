@@ -1,314 +1,1002 @@
-import logging
-import os
-from datetime import date
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import google.generativeai as genai
-import requests
-import re
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduBot Professional Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            min-height: 100vh;
+            color: #f1f5f9;
+        }
+        
+        /* Auth Pages */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .auth-card {
+            background: #1e293b;
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            border: 1px solid #334155;
+        }
+        .auth-card h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+        .auth-card p {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+        .auth-card input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+        }
+        .auth-card button {
+            width: 100%;
+            padding: 12px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .auth-card button:hover { background: #4f46e5; }
+        .auth-card .link {
+            text-align: center;
+            margin-top: 20px;
+            color: #94a3b8;
+        }
+        .auth-card .link a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+        
+        /* Dashboard */
+        .dashboard { display: none; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            padding: 30px;
+            border-radius: 24px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .header h1 { font-size: 1.8rem; }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            background: #1e293b;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .logout-btn {
+            background: #ef4444;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 15px;
+        }
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            padding: 10px 20px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .nav-btn.active {
+            background: #6366f1;
+            color: white;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid #334155;
+        }
+        .stat-card h3 { font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px; }
+        .stat-card .value { font-size: 2rem; font-weight: bold; color: #6366f1; }
+        
+        .card {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid #334155;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+        th { color: #94a3b8; font-size: 0.8rem; font-weight: 500; }
+        
+        button, .btn {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .btn-small { padding: 4px 10px; font-size: 0.75rem; }
+        .btn-danger { background: #ef4444; }
+        .btn-success { background: #22c55e; }
+        .btn-outline { background: transparent; border: 1px solid #6366f1; }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-content input, .modal-content textarea, .modal-content select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: white;
+        }
+        .modal-content textarea { min-height: 100px; }
+        
+        .file-upload {
+            border: 2px dashed #334155;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e293b;
+            border-left: 4px solid #22c55e;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 2000;
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            th, td { font-size: 0.7rem; padding: 8px; }
+            .header { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
 
-# ============================================
-# GET CREDENTIALS FROM ENVIRONMENT VARIABLES
-# ============================================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-GEMINI_KEY = os.environ.get("GEMINI_KEY", "")
-TEACHER_ID = os.environ.get("TEACHER_ID", "")
+<!-- Auth Pages -->
+<div id="loginPage" class="auth-container">
+    <div class="auth-card">
+        <h1>🎓 EduBot</h1>
+        <p>Sign in to your dashboard</p>
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+        <input type="password" id="loginPassword" placeholder="Password">
+        <button onclick="login()">Sign In</button>
+        <div class="link">
+            Don't have an account? <a href="#" onclick="showSignup()">Sign up</a>
+        </div>
+        <div id="loginError" style="color:#ef4444; text-align:center; margin-top:15px;"></div>
+    </div>
+</div>
 
-# Check if credentials are set
-if not BOT_TOKEN:
-    print("❌ ERROR: BOT_TOKEN not set!")
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("❌ ERROR: Supabase credentials not set!")
-if not GEMINI_KEY:
-    print("❌ ERROR: GEMINI_KEY not set!")
-if not TEACHER_ID:
-    print("❌ ERROR: TEACHER_ID not set!")
+<div id="signupPage" class="auth-container" style="display:none;">
+    <div class="auth-card">
+        <h1>🎓 EduBot</h1>
+        <p>Create your account</p>
+        <input type="text" id="signupName" placeholder="Full Name">
+        <input type="email" id="signupEmail" placeholder="Email">
+        <input type="password" id="signupPassword" placeholder="Password">
+        <button onclick="signup()">Sign Up</button>
+        <div class="link">
+            Already have an account? <a href="#" onclick="showLogin()">Sign in</a>
+        </div>
+        <div id="signupError" style="color:#ef4444; text-align:center; margin-top:15px;"></div>
+    </div>
+</div>
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+<!-- Main Dashboard -->
+<div id="dashboard" class="dashboard">
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🎓 EduBot Dashboard</h1>
+                <p>Manage your AI learning assistant</p>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar" id="userAvatar"></div>
+                <div><span id="userName"></span><br><small id="userRole"></small></div>
+                <div class="logout-btn" onclick="logout()">🚪 Logout</div>
+            </div>
+        </div>
+        
+        <div class="nav">
+            <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
+            <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
+            <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
+            <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
+            <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
+            <button class="nav-btn" id="adminNavBtn" style="display:none;" onclick="showPage('teachers')">👩‍🏫 Teachers</button>
+        </div>
+        
+        <!-- Analytics Page -->
+        <div id="analytics" class="page">
+            <div class="stats" id="stats"></div>
+            <div class="card">
+                <h3>📈 Student Activity</h3>
+                <canvas id="activityChart" style="max-height: 300px;"></canvas>
+            </div>
+            <div class="card">
+                <h3>📊 Recent Activity</h3>
+                <div id="recentActivity"></div>
+            </div>
+        </div>
+        
+        <!-- Notes Page -->
+        <div id="notes" class="page" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📝 Daily Notes</h2>
+                    <button onclick="openNoteModal()">+ Add Note</button>
+                </div>
+                <div id="notesTable"></div>
+            </div>
+        </div>
+        
+        <!-- Questions Page -->
+        <div id="questions" class="page" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <h2>❓ Practice Questions</h2>
+                    <div>
+                        <button onclick="openCSVImportModal()">📄 Import CSV</button>
+                        <button onclick="openQuestionModal()">+ Add Question</button>
+                    </div>
+                </div>
+                <div id="questionsTable"></div>
+            </div>
+        </div>
+        
+        <!-- Books Page -->
+        <div id="books" class="page" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📚 Books Library</h2>
+                    <button onclick="openBookModal()">+ Add Book</button>
+                </div>
+                <div id="booksTable"></div>
+            </div>
+        </div>
+        
+        <!-- Students Page -->
+        <div id="students" class="page" style="display:none">
+            <div class="card">
+                <h2>👨‍🎓 Registered Students</h2>
+                <div id="studentsTable"></div>
+            </div>
+        </div>
+        
+        <!-- Teachers Page (Super Admin Only) -->
+        <div id="teachers" class="page" style="display:none">
+            <div class="card">
+                <div class="card-header">
+                    <h2>👩‍🏫 Teachers</h2>
+                    <button onclick="openTeacherModal()">+ Add Teacher</button>
+                </div>
+                <div id="teachersTable"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
-# Initialize Gemini if key exists
-model = None
-if GEMINI_KEY:
-    try:
-        genai.configure(api_key=GEMINI_KEY)
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        logger.info("✅ Gemini initialized")
-    except Exception as e:
-        logger.error(f"Gemini init error: {e}")
+<!-- Modals -->
+<div id="noteModal" class="modal">
+    <div class="modal-content">
+        <h3>📝 Add/Edit Note</h3>
+        <input type="hidden" id="noteId">
+        <input type="text" id="noteTitle" placeholder="Title">
+        <input type="date" id="noteDate">
+        <textarea id="noteContent" rows="5" placeholder="Content..."></textarea>
+        <button onclick="saveNote()">Save</button>
+        <button onclick="closeModal('noteModal')">Cancel</button>
+    </div>
+</div>
 
-def escape_markdown(text):
-    """Escape special characters for Telegram Markdown"""
-    if not text:
-        return ""
-    # Characters that need escaping in Markdown
-    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
+<div id="questionModal" class="modal">
+    <div class="modal-content">
+        <h3>❓ Add/Edit Question</h3>
+        <input type="hidden" id="questionId">
+        <textarea id="questionText" rows="3" placeholder="Question..."></textarea>
+        <textarea id="questionAnswer" rows="3" placeholder="Answer..."></textarea>
+        <input type="text" id="questionSubject" placeholder="Subject (optional)">
+        <select id="questionDifficulty">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+        </select>
+        <button onclick="saveQuestion()">Save</button>
+        <button onclick="closeModal('questionModal')">Cancel</button>
+    </div>
+</div>
 
-def clean_text(text):
-    """Clean text for Telegram (remove problematic formatting)"""
-    if not text:
-        return ""
-    # Remove markdown formatting that might break
-    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # Remove bold
-    text = re.sub(r'\*([^*]+)\*', r'\1', text)      # Remove italic
-    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # Remove links
-    text = re.sub(r'`([^`]+)`', r'\1', text)        # Remove code
-    return text
+<div id="csvImportModal" class="modal">
+    <div class="modal-content">
+        <h3>📄 Import Questions from CSV</h3>
+        <p>CSV format: question,answer,subject,difficulty</p>
+        <div class="file-upload" onclick="document.getElementById('csvFile').click()">
+            📁 Click to upload CSV file
+        </div>
+        <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="importCSV()">
+        <button onclick="closeModal('csvImportModal')">Cancel</button>
+    </div>
+</div>
 
-def supabase_query(endpoint, method="GET", data=None):
-    """Query Supabase REST API"""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return []
+<div id="bookModal" class="modal">
+    <div class="modal-content">
+        <h3>📚 Add Book</h3>
+        <input type="hidden" id="bookId">
+        <input type="text" id="bookTitle" placeholder="Title">
+        <input type="text" id="bookAuthor" placeholder="Author">
+        <input type="text" id="bookSubject" placeholder="Subject">
+        <textarea id="bookDescription" rows="3" placeholder="Description"></textarea>
+        <div class="file-upload" onclick="document.getElementById('bookPdf').click()">
+            📄 Click to upload PDF (or enter URL below)
+        </div>
+        <input type="file" id="bookPdf" accept=".pdf" style="display:none">
+        <input type="url" id="bookFileUrl" placeholder="Or enter file URL">
+        <button onclick="saveBook()">Save Book</button>
+        <button onclick="closeModal('bookModal')">Cancel</button>
+    </div>
+</div>
+
+<div id="teacherModal" class="modal">
+    <div class="modal-content">
+        <h3>👩‍🏫 Add Teacher</h3>
+        <input type="text" id="teacherName" placeholder="Full Name">
+        <input type="email" id="teacherEmail" placeholder="Email">
+        <input type="password" id="teacherPassword" placeholder="Temporary Password">
+        <select id="teacherRole">
+            <option value="teacher">Teacher</option>
+            <option value="super_admin">Super Admin</option>
+        </select>
+        <button onclick="saveTeacher()">Create Teacher</button>
+        <button onclick="closeModal('teacherModal')">Cancel</button>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// Initialize Supabase
+const supabaseUrl = 'https://zecfvwgozgljqpmxfliv.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE';
+const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+let currentUser = null;
+let activityChart = null;
+
+// Auth Functions
+async function login() {
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    const errorDiv = document.getElementById('loginError');
     
-    url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json"
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        
+        // Get teacher record
+        const { data: teacher } = await supabase
+            .from('teachers')
+            .select('*')
+            .eq('email', email)
+            .single();
+        
+        currentUser = { ...data.user, ...teacher };
+        showDashboard();
+    } catch (error) {
+        errorDiv.textContent = error.message;
+    }
+}
+
+async function signup() {
+    const name = document.getElementById('signupName').value;
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    const errorDiv = document.getElementById('signupError');
+    
+    try {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        
+        // Create teacher record
+        await supabase.from('teachers').insert({
+            email: email,
+            name: name,
+            role: 'teacher',
+            is_active: true
+        });
+        
+        showLogin();
+    } catch (error) {
+        errorDiv.textContent = error.message;
+    }
+}
+
+function showDashboard() {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('signupPage').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    
+    document.getElementById('userName').textContent = currentUser.name;
+    document.getElementById('userAvatar').textContent = currentUser.name[0].toUpperCase();
+    document.getElementById('userRole').textContent = currentUser.role || 'Teacher';
+    
+    if (currentUser.role === 'super_admin') {
+        document.getElementById('adminNavBtn').style.display = 'block';
     }
     
-    try:
-        if method == "GET":
-            response = requests.get(url, headers=headers)
-        elif method == "POST":
-            response = requests.post(url, headers=headers, json=data)
-        elif method == "PATCH":
-            response = requests.patch(url, headers=headers, json=data)
-        elif method == "DELETE":
-            response = requests.delete(url, headers=headers)
-        else:
-            return []
-        
-        if response.status_code in [200, 201, 204]:
-            return response.json() if response.content else []
-        else:
-            logger.error(f"Supabase error {response.status_code}")
-            return []
-    except Exception as e:
-        logger.error(f"Request error: {e}")
-        return []
+    loadAllData();
+}
 
-def get_daily_note():
-    try:
-        today = date.today().isoformat()
-        result = supabase_query(f"daily_notes?teacher_id=eq.{TEACHER_ID}&note_date=eq.{today}&select=content")
-        if result and len(result) > 0:
-            return result[0]["content"]
-        return "📭 No note for today. Check back later!"
-    except:
-        return "Error fetching note"
+function showLogin() {
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('signupPage').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'none';
+}
 
-def get_all_notes():
-    try:
-        result = supabase_query(f"daily_notes?teacher_id=eq.{TEACHER_ID}&order=note_date.desc&limit=10&select=title,content,note_date")
-        if not result:
-            return "📭 No notes available"
-        text = "📚 *Recent Notes*\n\n"
-        for n in result:
-            text += f"📅 **{n['note_date']}**\n"
-            text += f"📝 {n['title']}\n"
-            text += f"{n['content'][:100]}...\n\n"
-        return text
-    except:
-        return "Error fetching notes"
+function showSignup() {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('signupPage').style.display = 'flex';
+    document.getElementById('dashboard').style.display = 'none';
+}
 
-def get_questions():
-    try:
-        result = supabase_query(f"questions?teacher_id=eq.{TEACHER_ID}&limit=5&select=id,question_text")
-        if not result:
-            return "📭 No questions available"
-        text = "❓ *Practice Questions*\n\n"
-        for i, q in enumerate(result, 1):
-            text += f"{i}. {q['question_text']}\n\n"
-        text += "\n💡 Type `/answer [number]` to see answer"
-        return text
-    except:
-        return "Error fetching questions"
+async function logout() {
+    await supabase.auth.signOut();
+    currentUser = null;
+    showLogin();
+}
 
-def get_answer(num):
-    try:
-        result = supabase_query(f"questions?teacher_id=eq.{TEACHER_ID}&limit=5&select=question_text,answer")
-        if not result or num > len(result):
-            return "❓ Question not found"
-        q = result[num - 1]
-        return f"❓ *Question:* {q['question_text']}\n\n✅ *Answer:* {q['answer']}"
-    except:
-        return "Error fetching answer"
+// API Functions
+async function api(table, options = {}) {
+    let query = supabase.from(table);
+    
+    if (options.select) query = query.select(options.select);
+    if (options.eq) query = query.eq(options.eq.column, options.eq.value);
+    if (options.order) query = query.order(options.order.column, { ascending: options.order.ascending });
+    if (options.insert) query = query.insert(options.insert);
+    if (options.update) query = query.update(options.update).eq(options.eq.column, options.eq.value);
+    if (options.delete) query = query.delete().eq(options.delete.column, options.delete.value);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+}
 
-def get_books():
-    try:
-        result = supabase_query(f"books?teacher_id=eq.{TEACHER_ID}&select=title")
-        if not result:
-            return "📭 No books available"
-        text = "📚 *Available Books*\n\n"
-        for b in result:
-            text += f"📖 {b['title']}\n"
-        return text
-    except:
-        return "Error fetching books"
+// Load Data Functions
+async function loadAllData() {
+    await loadAnalytics();
+    await loadNotes();
+    await loadQuestions();
+    await loadBooks();
+    await loadStudents();
+    if (currentUser.role === 'super_admin') await loadTeachers();
+}
 
-def save_student(telegram_user):
-    try:
-        existing = supabase_query(f"students?telegram_id=eq.{telegram_user.id}&select=id")
-        data = {
-            "telegram_id": telegram_user.id,
-            "username": telegram_user.username or "",
-            "first_name": telegram_user.first_name or "",
-            "teacher_id": TEACHER_ID
+async function loadAnalytics() {
+    const teacherId = currentUser.id;
+    
+    const [students, notes, questions, books, activity] = await Promise.all([
+        supabase.from('students').select('id').eq('teacher_id', teacherId),
+        supabase.from('daily_notes').select('id').eq('teacher_id', teacherId),
+        supabase.from('questions').select('id').eq('teacher_id', teacherId),
+        supabase.from('books').select('id').eq('teacher_id', teacherId),
+        supabase.from('activity_log').select('*').eq('teacher_id', teacherId).order('created_at', { ascending: false }).limit(20)
+    ]);
+    
+    document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><h3>Students</h3><div class="value">${students.data?.length || 0}</div></div>
+        <div class="stat-card"><h3>Notes</h3><div class="value">${notes.data?.length || 0}</div></div>
+        <div class="stat-card"><h3>Questions</h3><div class="value">${questions.data?.length || 0}</div></div>
+        <div class="stat-card"><h3>Books</h3><div class="value">${books.data?.length || 0}</div></div>
+    `;
+    
+    // Update chart
+    if (activityChart) activityChart.destroy();
+    const ctx = document.getElementById('activityChart').getContext('2d');
+    activityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [{
+                label: 'Student Activity',
+                data: [12, 19, 15, 17, 14, 10, 8],
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99,102,241,0.1)',
+                tension: 0.4
+            }]
         }
-        if existing and len(existing) > 0:
-            supabase_query(f"students?telegram_id=eq.{telegram_user.id}", "PATCH", data)
-        else:
-            supabase_query("students", "POST", data)
-        return True
-    except:
-        return False
+    });
+    
+    // Recent activity
+    if (activity.data?.length) {
+        document.getElementById('recentActivity').innerHTML = `
+            <table><tbody>
+                ${activity.data.map(a => `
+                    <tr><td>${a.action}</td><td>${new Date(a.created_at).toLocaleString()}</td></tr>
+                `).join('')}
+            </tbody></table>
+        `;
+    } else {
+        document.getElementById('recentActivity').innerHTML = '<p>No recent activity</p>';
+    }
+}
 
-# ============ TELEGRAM HANDLERS ============
+async function loadNotes() {
+    const { data } = await supabase
+        .from('daily_notes')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .order('note_date', { ascending: false });
+    
+    if (data?.length) {
+        document.getElementById('notesTable').innerHTML = `
+            <table><thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead><tbody>
+                ${data.map(n => `
+                    <tr>
+                        <td>${n.note_date}</td>
+                        <td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
+                        <td>
+                            <button class="btn-small" onclick="editNote('${n.id}')">Edit</button>
+                            <button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody></table>
+        `;
+    } else {
+        document.getElementById('notesTable').innerHTML = '<p>No notes yet</p>';
+    }
+}
 
-async def start(update: Update, context):
-    user = update.effective_user
-    save_student(user)
+async function loadQuestions() {
+    const { data } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .order('created_at', { ascending: false });
     
-    keyboard = [
-        [InlineKeyboardButton("📝 Daily Note", callback_data="daily")],
-        [InlineKeyboardButton("❓ Questions", callback_data="questions")],
-        [InlineKeyboardButton("🤖 Ask AI", callback_data="ask")],
-        [InlineKeyboardButton("📚 Books", callback_data="books")],
-        [InlineKeyboardButton("📋 All Notes", callback_data="allnotes")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        f"🎓 *Welcome {user.first_name}!*\n\nI'm EduBot - your AI learning assistant.\n\nClick the buttons below! 🚀",
-        parse_mode='Markdown',
-        reply_markup=reply_markup
-    )
+    if (data?.length) {
+        document.getElementById('questionsTable').innerHTML = `
+            <table><thead><tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Actions</th></tr></thead><tbody>
+                ${data.map(q => `
+                    <tr>
+                        <td>${escapeHtml(q.question_text.substring(0, 60))}...</td>
+                        <td>${escapeHtml(q.subject || '-')}</td>
+                        <td>${escapeHtml(q.difficulty || 'medium')}</td>
+                        <td>
+                            <button class="btn-small" onclick="editQuestion('${q.id}')">Edit</button>
+                            <button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody></table>
+        `;
+    } else {
+        document.getElementById('questionsTable').innerHTML = '<p>No questions yet</p>';
+    }
+}
 
-async def button_callback(update: Update, context):
-    query = update.callback_query
-    await query.answer()
+async function loadBooks() {
+    const { data } = await supabase
+        .from('books')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .order('created_at', { ascending: false });
     
-    if query.data == "daily":
-        note = get_daily_note()
-        await query.message.reply_text(f"📝 *Today's Note*\n\n{note}", parse_mode='Markdown')
-    elif query.data == "allnotes":
-        notes = get_all_notes()
-        await query.message.reply_text(notes, parse_mode='Markdown')
-    elif query.data == "questions":
-        q = get_questions()
-        await query.message.reply_text(q, parse_mode='Markdown')
-    elif query.data == "books":
-        books = get_books()
-        await query.message.reply_text(books, parse_mode='Markdown')
-    elif query.data == "ask":
-        await query.message.reply_text(
-            "🤖 *Ask me anything!*\n\nType: `/ask What is love?`",
-            parse_mode='Markdown'
-        )
+    if (data?.length) {
+        document.getElementById('booksTable').innerHTML = `
+            <table><thead><tr><th>Title</th><th>Author</th><th>File</th><th>Actions</th></tr></thead><tbody>
+                ${data.map(b => `
+                    <tr>
+                        <td><strong>${escapeHtml(b.title)}</strong></td>
+                        <td>${escapeHtml(b.author || '-')}</td>
+                        <td>${b.file_url ? `<a href="${b.file_url}" target="_blank" style="color:#6366f1">📄 View</a>` : '-'}</td>
+                        <td>
+                            <button class="btn-small" onclick="editBook('${b.id}')">Edit</button>
+                            <button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody></table>
+        `;
+    } else {
+        document.getElementById('booksTable').innerHTML = '<p>No books yet</p>';
+    }
+}
 
-async def answer_command(update: Update, context):
-    if not context.args:
-        await update.message.reply_text("Example: `/answer 1`", parse_mode='Markdown')
-        return
-    try:
-        num = int(context.args[0])
-        ans = get_answer(num)
-        await update.message.reply_text(ans, parse_mode='Markdown')
-    except:
-        await update.message.reply_text("Please provide a valid number.")
+async function loadStudents() {
+    const { data } = await supabase
+        .from('students')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .order('joined_at', { ascending: false });
+    
+    if (data?.length) {
+        document.getElementById('studentsTable').innerHTML = `
+            <table><thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead><tbody>
+                ${data.map(s => `
+                    <tr>
+                        <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
+                        <td>@${escapeHtml(s.username || '-')}</td>
+                        <td>${s.telegram_id}</td>
+                        <td>${new Date(s.joined_at).toLocaleDateString()}</td>
+                    </tr>
+                `).join('')}
+            </tbody></table>
+        `;
+    } else {
+        document.getElementById('studentsTable').innerHTML = '<p>No students yet</p>';
+    }
+}
 
-async def ask_command(update: Update, context):
-    if not context.args:
-        await update.message.reply_text(
-            "🤖 *Ask me anything!*\n\nExample: `/ask What is love?`",
-            parse_mode='Markdown'
-        )
-        return
+async function loadTeachers() {
+    const { data } = await supabase
+        .from('teachers')
+        .select('*')
+        .order('created_at', { ascending: false });
     
-    question = ' '.join(context.args)
-    thinking_msg = await update.message.reply_text("🤔 Thinking...")
+    if (data?.length) {
+        document.getElementById('teachersTable').innerHTML = `
+            <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+                ${data.map(t => `
+                    <tr>
+                        <td>${escapeHtml(t.name)}</td>
+                        <td>${escapeHtml(t.email)}</td>
+                        <td>${t.role || 'teacher'}</td>
+                        <td><span class="badge ${t.is_active ? 'badge-success' : 'badge-danger'}">${t.is_active ? 'Active' : 'Blocked'}</span></td>
+                        <td>
+                            <button class="btn-small" onclick="toggleTeacher('${t.id}', ${!t.is_active})">
+                                ${t.is_active ? 'Block' : 'Unblock'}
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody></table>
+        `;
+    }
+}
+
+// CRUD Operations
+async function saveNote() {
+    const id = document.getElementById('noteId').value;
+    const data = {
+        teacher_id: currentUser.id,
+        title: document.getElementById('noteTitle').value,
+        content: document.getElementById('noteContent').value,
+        note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0]
+    };
     
-    if model is None:
-        await thinking_msg.edit_text("⚠️ AI service not configured. Please contact administrator.")
-        return
+    if (id) {
+        await supabase.from('daily_notes').update(data).eq('id', id);
+    } else {
+        await supabase.from('daily_notes').insert(data);
+    }
     
-    try:
-        response = model.generate_content(question)
-        raw_answer = response.text if response.text else "No response generated."
-        
-        # Clean the answer to avoid Telegram parsing errors
-        clean_answer = clean_text(raw_answer)
-        
-        # Split long messages
-        if len(clean_answer) > 4000:
-            # Split into chunks
-            chunks = [clean_answer[i:i+4000] for i in range(0, len(clean_answer), 4000)]
-            await thinking_msg.delete()
-            for i, chunk in enumerate(chunks):
-                if i == 0:
-                    await update.message.reply_text(f"💡 *Answer:*\n\n{chunk}", parse_mode='Markdown')
-                else:
-                    await update.message.reply_text(chunk, parse_mode='Markdown')
-        else:
-            await thinking_msg.edit_text(f"💡 *Answer:*\n\n{clean_answer}", parse_mode='Markdown')
+    closeModal('noteModal');
+    loadNotes();
+    showToast('Note saved!');
+}
+
+async function deleteNote(id) {
+    if (!confirm('Delete this note?')) return;
+    await supabase.from('daily_notes').delete().eq('id', id);
+    loadNotes();
+    showToast('Note deleted');
+}
+
+async function saveQuestion() {
+    const id = document.getElementById('questionId').value;
+    const data = {
+        teacher_id: currentUser.id,
+        question_text: document.getElementById('questionText').value,
+        answer: document.getElementById('questionAnswer').value,
+        subject: document.getElementById('questionSubject').value,
+        difficulty: document.getElementById('questionDifficulty').value
+    };
+    
+    if (id) {
+        await supabase.from('questions').update(data).eq('id', id);
+    } else {
+        await supabase.from('questions').insert(data);
+    }
+    
+    closeModal('questionModal');
+    loadQuestions();
+    showToast('Question saved!');
+}
+
+async function deleteQuestion(id) {
+    if (!confirm('Delete this question?')) return;
+    await supabase.from('questions').delete().eq('id', id);
+    loadQuestions();
+    showToast('Question deleted');
+}
+
+async function importCSV() {
+    const file = document.getElementById('csvFile').files[0];
+    if (!file) return;
+    
+    Papa.parse(file, {
+        header: true,
+        complete: async (results) => {
+            const questions = results.data.map(row => ({
+                teacher_id: currentUser.id,
+                question_text: row.question || row.Question,
+                answer: row.answer || row.Answer,
+                subject: row.subject || row.Subject || null,
+                difficulty: row.difficulty || row.Difficulty || 'medium'
+            }));
             
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Gemini error: {error_msg}")
+            const { error } = await supabase.from('questions').insert(questions);
+            if (error) throw error;
+            
+            closeModal('csvImportModal');
+            loadQuestions();
+            showToast(`${questions.length} questions imported!`);
+        }
+    });
+}
+
+async function saveBook() {
+    const id = document.getElementById('bookId').value;
+    let fileUrl = document.getElementById('bookFileUrl').value;
+    
+    // Upload PDF if selected
+    const pdfFile = document.getElementById('bookPdf').files[0];
+    if (pdfFile) {
+        const fileName = `${Date.now()}_${pdfFile.name}`;
+        const { data, error } = await supabase.storage
+            .from('books')
+            .upload(fileName, pdfFile);
         
-        if "quota" in error_msg.lower() or "rate" in error_msg.lower():
-            await thinking_msg.edit_text("⚠️ AI service is busy. Please wait a moment and try again.")
-        elif "safety" in error_msg.lower():
-            await thinking_msg.edit_text("⚠️ I can't answer that question. Please ask something else.")
-        elif "entities" in error_msg.lower():
-            # If still having parse errors, send without formatting
-            try:
-                response = model.generate_content(question)
-                await thinking_msg.edit_text(f"💡 Answer:\n\n{response.text}")
-            except:
-                await thinking_msg.edit_text("⚠️ Sorry, I couldn't process that question. Please try again.")
-        else:
-            await thinking_msg.edit_text(f"⚠️ Error: {error_msg[:100]}")
-
-async def error_handler(update: Update, context):
-    logger.error(f"Error: {context.error}")
-
-# ============ MAIN ============
-
-def main():
-    print("=" * 50)
-    print("🤖 EduBot Starting...")
-    print("=" * 50)
-    print(f"BOT_TOKEN: {'✅ Set' if BOT_TOKEN else '❌ Missing'}")
-    print(f"SUPABASE_URL: {'✅ Set' if SUPABASE_URL else '❌ Missing'}")
-    print(f"SUPABASE_KEY: {'✅ Set' if SUPABASE_KEY else '❌ Missing'}")
-    print(f"GEMINI_KEY: {'✅ Set' if GEMINI_KEY else '❌ Missing'}")
-    print(f"TEACHER_ID: {'✅ Set' if TEACHER_ID else '❌ Missing'}")
-    print("=" * 50)
+        if (!error) {
+            fileUrl = supabase.storage.from('books').getPublicUrl(fileName).data.publicUrl;
+        }
+    }
     
-    if not BOT_TOKEN or not SUPABASE_URL or not SUPABASE_KEY:
-        print("❌ ERROR: Missing required credentials!")
-        return
+    const data = {
+        teacher_id: currentUser.id,
+        title: document.getElementById('bookTitle').value,
+        author: document.getElementById('bookAuthor').value,
+        subject: document.getElementById('bookSubject').value,
+        description: document.getElementById('bookDescription').value,
+        file_url: fileUrl || null
+    };
     
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("answer", answer_command))
-    app.add_handler(CommandHandler("ask", ask_command))
-    app.add_handler(CallbackQueryHandler(button_callback))
-    app.add_error_handler(error_handler)
+    if (id) {
+        await supabase.from('books').update(data).eq('id', id);
+    } else {
+        await supabase.from('books').insert(data);
+    }
     
-    print("✅ Bot is running!")
-    print("Commands: /start, /ask, /answer")
-    print("=" * 50)
-    
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    closeModal('bookModal');
+    loadBooks();
+    showToast('Book saved!');
+}
 
-if __name__ == "__main__":
-    main()
+async function deleteBook(id) {
+    if (!confirm('Delete this book?')) return;
+    await supabase.from('books').delete().eq('id', id);
+    loadBooks();
+    showToast('Book deleted');
+}
+
+async function saveTeacher() {
+    const email = document.getElementById('teacherEmail').value;
+    const password = document.getElementById('teacherPassword').value;
+    const name = document.getElementById('teacherName').value;
+    const role = document.getElementById('teacherRole').value;
+    
+    // Create auth user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password
+    });
+    
+    if (authError) throw authError;
+    
+    // Create teacher record
+    await supabase.from('teachers').insert({
+        id: authData.user.id,
+        email,
+        name,
+        role,
+        is_active: true
+    });
+    
+    closeModal('teacherModal');
+    loadTeachers();
+    showToast('Teacher created!');
+}
+
+async function toggleTeacher(id, activate) {
+    await supabase.from('teachers').update({ is_active: activate }).eq('id', id);
+    loadTeachers();
+    showToast(activate ? 'Teacher activated' : 'Teacher blocked');
+}
+
+// UI Functions
+function showPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    document.getElementById(page).style.display = 'block';
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+function openNoteModal() {
+    document.getElementById('noteId').value = '';
+    document.getElementById('noteTitle').value = '';
+    document.getElementById('noteContent').value = '';
+    document.getElementById('noteDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('noteModal').style.display = 'flex';
+}
+
+function editNote(id) {
+    // Fetch and populate
+    openNoteModal();
+}
+
+function openQuestionModal() {
+    document.getElementById('questionId').value = '';
+    document.getElementById('questionText').value = '';
+    document.getElementById('questionAnswer').value = '';
+    document.getElementById('questionSubject').value = '';
+    document.getElementById('questionDifficulty').value = 'medium';
+    document.getElementById('questionModal').style.display = 'flex';
+}
+
+function openCSVImportModal() {
+    document.getElementById('csvImportModal').style.display = 'flex';
+}
+
+function openBookModal() {
+    document.getElementById('bookId').value = '';
+    document.getElementById('bookTitle').value = '';
+    document.getElementById('bookAuthor').value = '';
+    document.getElementById('bookSubject').value = '';
+    document.getElementById('bookDescription').value = '';
+    document.getElementById('bookFileUrl').value = '';
+    document.getElementById('bookPdf').value = '';
+    document.getElementById('bookModal').style.display = 'flex';
+}
+
+function openTeacherModal() {
+    document.getElementById('teacherName').value = '';
+    document.getElementById('teacherEmail').value = '';
+    document.getElementById('teacherPassword').value = '';
+    document.getElementById('teacherRole').value = 'teacher';
+    document.getElementById('teacherModal').style.display = 'flex';
+}
+
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.style.display = 'block';
+    setTimeout(() => {
+        toast.style.display = 'none';
+    }, 3000);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// Check if user is already logged in
+async function checkSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        const { data: teacher } = await supabase
+            .from('teachers')
+            .select('*')
+            .eq('email', session.user.email)
+            .single();
+        currentUser = { ...session.user, ...teacher };
+        showDashboard();
+    }
+}
+
+checkSession();
+</script>
+</body>
+</html>
