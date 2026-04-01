@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduBot Dashboard</title>
+    <title>EduBot Dashboard - Super Admin</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -19,7 +19,10 @@
             padding: 30px;
             border-radius: 24px;
             margin-bottom: 30px;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
         }
         .status {
             display: inline-block;
@@ -29,6 +32,8 @@
         }
         .status-connected { background: #22c55e20; color: #22c55e; }
         .status-error { background: #ef444420; color: #ef4444; }
+        .status-super { background: #f59e0b20; color: #f59e0b; }
+        
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -43,6 +48,7 @@
             text-align: center;
         }
         .stat-card .value { font-size: 2rem; font-weight: bold; color: #6366f1; }
+        
         .nav {
             display: flex;
             gap: 10px;
@@ -63,6 +69,15 @@
             background: #6366f1;
             color: white;
         }
+        .nav-btn.super {
+            border-color: #f59e0b;
+            color: #f59e0b;
+        }
+        .nav-btn.super.active {
+            background: #f59e0b;
+            color: #0f172a;
+        }
+        
         .card {
             background: #1e293b;
             border-radius: 20px;
@@ -77,9 +92,11 @@
             flex-wrap: wrap;
             gap: 15px;
         }
+        
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
         th { color: #94a3b8; }
+        
         button {
             background: #6366f1;
             color: white;
@@ -90,7 +107,10 @@
         }
         .btn-small { padding: 4px 10px; font-size: 0.75rem; }
         .btn-danger { background: #ef4444; }
-        input, textarea {
+        .btn-success { background: #22c55e; }
+        .btn-warning { background: #f59e0b; }
+        
+        input, textarea, select {
             width: 100%;
             padding: 10px;
             margin-bottom: 15px;
@@ -99,6 +119,7 @@
             border-radius: 10px;
             color: white;
         }
+        
         .modal {
             display: none;
             position: fixed;
@@ -118,7 +139,19 @@
             max-width: 500px;
             width: 90%;
         }
+        
         .empty { text-align: center; padding: 40px; color: #64748b; }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+        }
+        .badge-super { background: #f59e0b20; color: #f59e0b; }
+        .badge-teacher { background: #6366f120; color: #6366f1; }
+        .badge-active { background: #22c55e20; color: #22c55e; }
+        .badge-inactive { background: #ef444420; color: #ef4444; }
+        
         .toast {
             position: fixed;
             bottom: 20px;
@@ -128,29 +161,47 @@
             padding: 12px 20px;
             border-radius: 10px;
             display: none;
+            z-index: 2000;
+        }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            th, td { font-size: 0.7rem; padding: 8px; }
         }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>🎓 EduBot Dashboard</h1>
-        <p>Manage your AI learning assistant</p>
-        <div id="connectionStatus" class="status status-error">Checking connection...</div>
+        <div>
+            <h1>🎓 EduBot Dashboard</h1>
+            <p>Manage your AI learning assistant</p>
+        </div>
+        <div>
+            <span id="userRoleBadge" class="badge badge-teacher"></span>
+            <div id="connectionStatus" class="status status-error">Checking connection...</div>
+        </div>
     </div>
     
-    <div class="nav">
+    <div class="nav" id="navMenu">
         <button class="nav-btn active" onclick="showPage('analytics')">📊 Analytics</button>
         <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
         <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
         <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
         <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
+        <button class="nav-btn super" id="adminNavBtn" style="display:none;" onclick="showPage('teachers')">👑 Super Admin</button>
     </div>
     
+    <!-- Analytics Page -->
     <div id="analytics" class="page">
         <div class="stats" id="stats"></div>
+        <div class="card">
+            <h3>📈 System Status</h3>
+            <div id="systemStatus"></div>
+        </div>
     </div>
     
+    <!-- Notes Page -->
     <div id="notes" class="page" style="display:none">
         <div class="card">
             <div class="card-header">
@@ -161,6 +212,7 @@
         </div>
     </div>
     
+    <!-- Questions Page -->
     <div id="questions" class="page" style="display:none">
         <div class="card">
             <div class="card-header">
@@ -171,6 +223,7 @@
         </div>
     </div>
     
+    <!-- Books Page -->
     <div id="books" class="page" style="display:none">
         <div class="card">
             <div class="card-header">
@@ -181,15 +234,32 @@
         </div>
     </div>
     
+    <!-- Students Page -->
     <div id="students" class="page" style="display:none">
         <div class="card">
             <h2>👨‍🎓 Students</h2>
             <div id="studentsTable"></div>
         </div>
     </div>
+    
+    <!-- SUPER ADMIN: Teachers Management Page -->
+    <div id="teachers" class="page" style="display:none">
+        <div class="card">
+            <div class="card-header">
+                <h2>👑 Super Admin - Teacher Management</h2>
+                <button onclick="openTeacherModal()">+ Add New Teacher</button>
+            </div>
+            <div id="teachersTable"></div>
+        </div>
+        
+        <div class="card">
+            <h3>📊 System Overview</h3>
+            <div id="systemOverview"></div>
+        </div>
+    </div>
 </div>
 
-<!-- Modals -->
+<!-- Note Modal -->
 <div id="noteModal" class="modal">
     <div class="modal-content">
         <h3>Add Note</h3>
@@ -201,6 +271,7 @@
     </div>
 </div>
 
+<!-- Question Modal -->
 <div id="questionModal" class="modal">
     <div class="modal-content">
         <h3>Add Question</h3>
@@ -211,6 +282,7 @@
     </div>
 </div>
 
+<!-- Book Modal -->
 <div id="bookModal" class="modal">
     <div class="modal-content">
         <h3>Add Book</h3>
@@ -221,16 +293,40 @@
     </div>
 </div>
 
+<!-- Teacher Modal (Super Admin Only) -->
+<div id="teacherModal" class="modal">
+    <div class="modal-content">
+        <h3>👑 Add New Teacher</h3>
+        <input type="text" id="teacherName" placeholder="Full Name">
+        <input type="email" id="teacherEmail" placeholder="Email">
+        <input type="password" id="teacherPassword" placeholder="Temporary Password">
+        <select id="teacherRole">
+            <option value="teacher">Teacher</option>
+            <option value="super_admin">Super Admin</option>
+        </select>
+        <button onclick="createTeacher()">Create Teacher</button>
+        <button onclick="closeModal('teacherModal')">Cancel</button>
+    </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
+// ============================================
+// SUPABASE CONFIGURATION
+// ============================================
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
 const TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
 
-function showToast(msg) {
+let currentUser = null;
+let userRole = null;
+
+// Helper Functions
+function showToast(msg, type = 'success') {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
+    toast.style.borderLeftColor = type === 'error' ? '#ef4444' : '#22c55e';
     toast.style.display = 'block';
     setTimeout(() => toast.style.display = 'none', 3000);
 }
@@ -250,12 +346,40 @@ async function api(table, options = {}) {
     return res.json();
 }
 
+// Get current user role
+async function getUserRole() {
+    try {
+        const teachers = await api('teachers', { filter: { column: 'id', value: TEACHER_ID } });
+        if (teachers && teachers.length > 0) {
+            currentUser = teachers[0];
+            userRole = currentUser.role || 'teacher';
+            return userRole;
+        }
+        return 'teacher';
+    } catch (e) {
+        return 'teacher';
+    }
+}
+
+// Test connection
 async function testConnection() {
     try {
+        const role = await getUserRole();
         const result = await api('teachers', { filter: { column: 'id', value: TEACHER_ID } });
         if (result && result.length > 0) {
             document.getElementById('connectionStatus').innerHTML = '✅ Connected to Supabase';
             document.getElementById('connectionStatus').className = 'status status-connected';
+            
+            // Show role badge
+            const badge = document.getElementById('userRoleBadge');
+            if (role === 'super_admin') {
+                badge.innerHTML = '👑 Super Admin';
+                badge.className = 'badge badge-super';
+                document.getElementById('adminNavBtn').style.display = 'block';
+            } else {
+                badge.innerHTML = '👨‍🏫 Teacher';
+                badge.className = 'badge badge-teacher';
+            }
             return true;
         } else {
             document.getElementById('connectionStatus').innerHTML = '⚠️ Teacher not found';
@@ -267,12 +391,17 @@ async function testConnection() {
     }
 }
 
+// Load all data
 async function loadAll() {
     await loadStats();
     await loadNotes();
     await loadQuestions();
     await loadBooks();
     await loadStudents();
+    if (userRole === 'super_admin') {
+        await loadTeachers();
+        await loadSystemOverview();
+    }
 }
 
 async function loadStats() {
@@ -288,13 +417,19 @@ async function loadStats() {
         <div class="stat-card"><h3>Questions</h3><div class="value">${questions?.length || 0}</div></div>
         <div class="stat-card"><h3>Books</h3><div class="value">${books?.length || 0}</div></div>
     `;
+    document.getElementById('systemStatus').innerHTML = `
+        <p>✅ Bot is running on Railway</p>
+        <p>📊 Database: Supabase connected</p>
+        <p>🤖 Gemini AI: Active</p>
+        <p>👑 Role: ${userRole === 'super_admin' ? 'Super Admin' : 'Teacher'}</p>
+    `;
 }
 
 async function loadNotes() {
     const notes = await api('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID }, order: { column: 'note_date' } });
     if (notes?.length) {
         document.getElementById('notesTable').innerHTML = `
-            <thead> <th>Date</th><th>Title</th><th>Actions</th> </thead>
+            <thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead>
             <tbody>${notes.map(n => `
                 <tr><td>${n.note_date}</td><td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
                 <td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td></tr>
@@ -309,7 +444,7 @@ async function loadQuestions() {
     const questions = await api('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } });
     if (questions?.length) {
         document.getElementById('questionsTable').innerHTML = `
-            <thead><th>Question</th><th>Answer</th><th>Actions</th></thead>
+            <thead><tr><th>Question</th><th>Answer</th><th>Actions</th></tr></thead>
             <tbody>${questions.map(q => `
                 <tr><td>${escapeHtml(q.question_text.substring(0, 60))}...</td>
                 <td>${escapeHtml(q.answer.substring(0, 40))}...</td>
@@ -325,7 +460,7 @@ async function loadBooks() {
     const books = await api('books', { filter: { column: 'teacher_id', value: TEACHER_ID } });
     if (books?.length) {
         document.getElementById('booksTable').innerHTML = `
-            <thead><th>Title</th><th>Author</th><th>Actions</th></thead>
+            <thead><tr><th>Title</th><th>Author</th><th>Actions</th></tr></thead>
             <tbody>${books.map(b => `
                 <tr><td><strong>${escapeHtml(b.title)}</strong></td>
                 <td>${escapeHtml(b.author || '-')}</td>
@@ -341,7 +476,7 @@ async function loadStudents() {
     const students = await api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } });
     if (students?.length) {
         document.getElementById('studentsTable').innerHTML = `
-            <thead><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></thead>
+            <thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead>
             <tbody>${students.map(s => `
                 <tr><td>${escapeHtml(s.first_name || 'Anonymous')}</td>
                 <td>@${escapeHtml(s.username || '-')}</td>
@@ -354,9 +489,117 @@ async function loadStudents() {
     }
 }
 
+// SUPER ADMIN FUNCTIONS
+async function loadTeachers() {
+    const teachers = await api('teachers', { order: { column: 'created_at' } });
+    if (teachers?.length) {
+        document.getElementById('teachersTable').innerHTML = `
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>${teachers.map(t => `
+                <tr>
+                    <td><strong>${escapeHtml(t.name)}</strong></td>
+                    <td>${escapeHtml(t.email)}</td>
+                    <td><span class="badge ${t.role === 'super_admin' ? 'badge-super' : 'badge-teacher'}">${t.role || 'teacher'}</span></td>
+                    <td><span class="badge ${t.is_active ? 'badge-active' : 'badge-inactive'}">${t.is_active ? 'Active' : 'Blocked'}</span></td>
+                    <td>${new Date(t.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn-small ${t.is_active ? 'btn-warning' : 'btn-success'}" onclick="toggleTeacherStatus('${t.id}', ${!t.is_active})">
+                            ${t.is_active ? '🔒 Block' : '✅ Unblock'}
+                        </button>
+                        ${t.role !== 'super_admin' ? `<button class="btn-small btn-danger" onclick="deleteTeacher('${t.id}')">🗑 Delete</button>` : ''}
+                    </td>
+                </tr>
+            `).join('')}</tbody>
+        `;
+    }
+}
+
+async function loadSystemOverview() {
+    const [teachers, students, notes, questions, books] = await Promise.all([
+        api('teachers', {}),
+        api('students', {}),
+        api('daily_notes', {}),
+        api('questions', {}),
+        api('books', {})
+    ]);
+    
+    document.getElementById('systemOverview').innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+            <div><strong>👩‍🏫 Teachers:</strong> ${teachers?.length || 0}</div>
+            <div><strong>👨‍🎓 Students:</strong> ${students?.length || 0}</div>
+            <div><strong>📝 Notes:</strong> ${notes?.length || 0}</div>
+            <div><strong>❓ Questions:</strong> ${questions?.length || 0}</div>
+            <div><strong>📚 Books:</strong> ${books?.length || 0}</div>
+        </div>
+    `;
+}
+
+async function createTeacher() {
+    const name = document.getElementById('teacherName').value;
+    const email = document.getElementById('teacherEmail').value;
+    const password = document.getElementById('teacherPassword').value;
+    const role = document.getElementById('teacherRole').value;
+    
+    if (!name || !email || !password) {
+        showToast('All fields required', 'error');
+        return;
+    }
+    
+    try {
+        // Generate a new UUID for the teacher
+        const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+        
+        await api('teachers', { 
+            method: 'POST', 
+            data: { 
+                id: newId,
+                email: email, 
+                name: name, 
+                role: role,
+                is_active: true 
+            } 
+        });
+        
+        closeModal('teacherModal');
+        await loadTeachers();
+        await loadSystemOverview();
+        showToast(`Teacher ${name} created!`, 'success');
+        
+        document.getElementById('teacherName').value = '';
+        document.getElementById('teacherEmail').value = '';
+        document.getElementById('teacherPassword').value = '';
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function toggleTeacherStatus(id, activate) {
+    try {
+        await api(`teachers?id=eq.${id}`, { method: 'PATCH', data: { is_active: activate } });
+        await loadTeachers();
+        await loadSystemOverview();
+        showToast(activate ? 'Teacher activated' : 'Teacher blocked', 'success');
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function deleteTeacher(id) {
+    if (!confirm('Delete this teacher? This will delete all their data!')) return;
+    try {
+        await api(`teachers?id=eq.${id}`, { method: 'DELETE' });
+        await loadTeachers();
+        await loadSystemOverview();
+        showToast('Teacher deleted', 'success');
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+// CRUD Operations
 async function saveNote() {
     const data = { teacher_id: TEACHER_ID, title: document.getElementById('noteTitle').value, content: document.getElementById('noteContent').value, note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0] };
-    if (!data.title || !data.content) { showToast('Title and content required'); return; }
+    if (!data.title || !data.content) { showToast('Title and content required', 'error'); return; }
     await api('daily_notes', { method: 'POST', data });
     closeModal('noteModal');
     await loadAll();
@@ -365,7 +608,7 @@ async function saveNote() {
 
 async function saveQuestion() {
     const data = { teacher_id: TEACHER_ID, question_text: document.getElementById('questionText').value, answer: document.getElementById('questionAnswer').value };
-    if (!data.question_text || !data.answer) { showToast('Question and answer required'); return; }
+    if (!data.question_text || !data.answer) { showToast('Question and answer required', 'error'); return; }
     await api('questions', { method: 'POST', data });
     closeModal('questionModal');
     await loadAll();
@@ -374,7 +617,7 @@ async function saveQuestion() {
 
 async function saveBook() {
     const data = { teacher_id: TEACHER_ID, title: document.getElementById('bookTitle').value, author: document.getElementById('bookAuthor').value || null };
-    if (!data.title) { showToast('Title required'); return; }
+    if (!data.title) { showToast('Title required', 'error'); return; }
     await api('books', { method: 'POST', data });
     closeModal('bookModal');
     await loadAll();
@@ -385,18 +628,23 @@ async function deleteNote(id) { if (confirm('Delete?')) { await api(`daily_notes
 async function deleteQuestion(id) { if (confirm('Delete?')) { await api(`questions?id=eq.${id}`, { method: 'DELETE' }); await loadAll(); showToast('Deleted'); } }
 async function deleteBook(id) { if (confirm('Delete?')) { await api(`books?id=eq.${id}`, { method: 'DELETE' }); await loadAll(); showToast('Deleted'); } }
 
+// UI Functions
 function showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(page).style.display = 'block';
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
 }
+
 function openNoteModal() { document.getElementById('noteDate').value = new Date().toISOString().split('T')[0]; document.getElementById('noteModal').style.display = 'flex'; }
 function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
 function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
+function openTeacherModal() { document.getElementById('teacherModal').style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
+// Initialize
 testConnection().then(connected => { if (connected) loadAll(); });
 </script>
 </body>
