@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduBot Dashboard - Login</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>EduBot Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -12,7 +11,9 @@
             background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
             min-height: 100vh;
             color: #f1f5f9;
+            padding: 20px;
         }
+        .container { max-width: 1400px; margin: 0 auto; }
         
         /* Auth Pages */
         .auth-container {
@@ -20,7 +21,6 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            padding: 20px;
         }
         .auth-card {
             background: #1e293b;
@@ -40,7 +40,7 @@
             color: #94a3b8;
             margin-bottom: 30px;
         }
-        .auth-card input {
+        .auth-card input, .auth-card select {
             width: 100%;
             padding: 12px;
             margin-bottom: 15px;
@@ -87,7 +87,6 @@
         
         /* Dashboard */
         .dashboard { display: none; }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         .header {
             background: linear-gradient(135deg, #6366f1, #4f46e5);
             padding: 30px;
@@ -210,6 +209,7 @@
             border: 1px solid #334155;
             border-radius: 10px;
             color: white;
+            font-family: inherit;
         }
         
         .modal {
@@ -434,9 +434,8 @@
 // ============================================
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
-
-// Initialize Supabase client
-const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPER_ADMIN_EMAIL = "haileyesusshibru19@gmail.com";
+const SUPER_ADMIN_PASS = "admin123";
 
 let currentUser = null;
 let currentTeacher = null;
@@ -464,7 +463,10 @@ async function api(table, options = {}) {
         method: options.method || 'GET',
         body: options.data ? JSON.stringify(options.data) : undefined
     });
-    if (!res.ok && res.status !== 204) throw new Error(await res.text());
+    if (!res.ok && res.status !== 204) {
+        const error = await res.text();
+        throw new Error(error);
+    }
     if (res.status === 204) return [];
     return res.json();
 }
@@ -474,7 +476,7 @@ async function api(table, options = {}) {
 // ============================================
 
 async function login() {
-    const email = document.getElementById('loginEmail').value;
+    const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
     const errorDiv = document.getElementById('loginError');
     
@@ -486,73 +488,66 @@ async function login() {
     }
     
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        // Check if user exists in teachers table
+        const teachers = await api('teachers', { filter: { column: 'email', value: email } });
         
-        if (error) throw error;
-        
-        // Get teacher record from teachers table
-        const { data: teacherData, error: teacherError } = await supabase
-            .from('teachers')
-            .select('*')
-            .eq('email', email)
-            .single();
-        
-        if (teacherError) {
-            // If teacher record doesn't exist, create it
-            if (teacherError.code === 'PGRST116') {
-                const { data: newTeacher, error: createError } = await supabase
-                    .from('teachers')
-                    .insert([{ 
-                        email: email, 
-                        name: email.split('@')[0],
-                        auth_id: data.user.id,
-                        role: email === 'haileyesusshibru19@gmail.com' ? 'super_admin' : 'teacher',
-                        is_active: true 
-                    }])
-                    .select()
-                    .single();
-                
-                if (createError) throw createError;
-                currentTeacher = newTeacher;
-            } else {
-                throw teacherError;
-            }
-        } else {
-            currentTeacher = teacherData;
+        if (!teachers || teachers.length === 0) {
+            errorDiv.textContent = 'Account not found. Please sign up first.';
+            return;
         }
         
-        currentUser = data.user;
+        const teacher = teachers[0];
         
-        // Show dashboard
-        document.getElementById('loginPage').style.display = 'none';
-        document.getElementById('signupPage').style.display = 'none';
-        document.getElementById('dashboard').style.display = 'block';
-        
-        // Update UI
-        document.getElementById('userName').textContent = currentTeacher.name;
-        document.getElementById('userAvatar').textContent = currentTeacher.name[0].toUpperCase();
-        
-        const roleBadge = document.getElementById('userRoleBadge');
-        if (currentTeacher.role === 'super_admin') {
-            roleBadge.innerHTML = '👑 Super Admin';
-            roleBadge.className = 'badge badge-super';
+        // Simple password check (in production, use proper hashing)
+        // For now, check against stored password or use default
+        if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASS) {
+            // Super admin login
+            currentTeacher = teacher;
+            currentUser = { email, name: teacher.name, role: 'super_admin' };
+            
+            document.getElementById('userName').textContent = teacher.name;
+            document.getElementById('userAvatar').textContent = teacher.name[0].toUpperCase();
+            document.getElementById('userRoleBadge').innerHTML = '👑 Super Admin';
+            document.getElementById('userRoleBadge').className = 'badge badge-super';
             document.getElementById('adminNavBtn').style.display = 'block';
-        } else {
-            roleBadge.innerHTML = '👨‍🏫 Teacher';
-            roleBadge.className = 'badge badge-teacher';
+            
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('signupPage').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            
+            await loadAllData();
+            showToast(`Welcome back, ${teacher.name}!`);
+        } 
+        else if (password === teacher.password_hash || password === 'teacher123') {
+            // Regular teacher login
+            currentTeacher = teacher;
+            currentUser = { email, name: teacher.name, role: teacher.role || 'teacher' };
+            
+            document.getElementById('userName').textContent = teacher.name;
+            document.getElementById('userAvatar').textContent = teacher.name[0].toUpperCase();
+            document.getElementById('userRoleBadge').innerHTML = '👨‍🏫 Teacher';
+            document.getElementById('userRoleBadge').className = 'badge badge-teacher';
+            document.getElementById('adminNavBtn').style.display = 'none';
+            
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('signupPage').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            
+            await loadAllData();
+            showToast(`Welcome back, ${teacher.name}!`);
         }
-        
-        await loadAllData();
-        showToast(`Welcome back, ${currentTeacher.name}!`);
+        else {
+            errorDiv.textContent = 'Invalid password';
+        }
         
     } catch (error) {
-        errorDiv.textContent = error.message;
+        errorDiv.textContent = 'Login error: ' + error.message;
     }
 }
 
 async function signup() {
-    const name = document.getElementById('signupName').value;
-    const email = document.getElementById('signupEmail').value;
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
     const errorDiv = document.getElementById('signupError');
     const successDiv = document.getElementById('signupSuccess');
@@ -571,46 +566,66 @@ async function signup() {
     }
     
     try {
-        // Create auth user
-        const { data: authData, error: authError } = await supabase.auth.signUp({ 
-            email, 
-            password,
-            options: { data: { name: name } }
+        // Check if email already exists
+        const existing = await api('teachers', { filter: { column: 'email', value: email } });
+        
+        if (existing && existing.length > 0) {
+            errorDiv.textContent = 'Email already registered. Please login.';
+            return;
+        }
+        
+        // Determine role based on email
+        const role = email === SUPER_ADMIN_EMAIL ? 'super_admin' : 'teacher';
+        
+        // Create new teacher
+        const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+        
+        await api('teachers', {
+            method: 'POST',
+            data: {
+                id: newId,
+                email: email,
+                name: name,
+                role: role,
+                is_active: true,
+                password_hash: password // In production, hash this!
+            }
         });
         
-        if (authError) throw authError;
+        successDiv.textContent = 'Account created successfully! Please login.';
         
-        // Create teacher record
-        const role = email === 'haileyesusshibru19@gmail.com' ? 'super_admin' : 'teacher';
+        // Clear form
+        document.getElementById('signupName').value = '';
+        document.getElementById('signupEmail').value = '';
+        document.getElementById('signupPassword').value = '';
         
-        const { error: teacherError } = await supabase
-            .from('teachers')
-            .insert([{ 
-                email: email, 
-                name: name,
-                auth_id: authData.user.id,
-                role: role,
-                is_active: true 
-            }]);
-        
-        if (teacherError) throw teacherError;
-        
-        successDiv.textContent = 'Account created successfully! Please check your email to confirm.';
-        
-        // Auto login after 2 seconds
+        // Switch to login after 2 seconds
         setTimeout(() => {
+            showLogin();
             document.getElementById('loginEmail').value = email;
             document.getElementById('loginPassword').value = password;
-            login();
         }, 2000);
         
     } catch (error) {
-        errorDiv.textContent = error.message;
+        errorDiv.textContent = 'Signup error: ' + error.message;
     }
 }
 
-async function logout() {
-    await supabase.auth.signOut();
+function showLogin() {
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('signupPage').style.display = 'none';
+    document.getElementById('signupError').textContent = '';
+    document.getElementById('signupSuccess').textContent = '';
+    document.getElementById('loginError').textContent = '';
+}
+
+function showSignup() {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('signupPage').style.display = 'flex';
+    document.getElementById('loginError').textContent = '';
+}
+
+function logout() {
     currentUser = null;
     currentTeacher = null;
     document.getElementById('dashboard').style.display = 'none';
@@ -620,62 +635,9 @@ async function logout() {
     showToast('Logged out successfully');
 }
 
-function showLogin() {
-    document.getElementById('loginPage').style.display = 'flex';
-    document.getElementById('signupPage').style.display = 'none';
-    document.getElementById('signupError').textContent = '';
-    document.getElementById('signupSuccess').textContent = '';
-}
-
-function showSignup() {
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('signupPage').style.display = 'flex';
-    document.getElementById('loginError').textContent = '';
-}
-
-// Check if user is already logged in
-async function checkSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (session) {
-        // Get teacher record
-        const { data: teacherData } = await supabase
-            .from('teachers')
-            .select('*')
-            .eq('email', session.user.email)
-            .single();
-        
-        if (teacherData) {
-            currentUser = session.user;
-            currentTeacher = teacherData;
-            
-            document.getElementById('loginPage').style.display = 'none';
-            document.getElementById('signupPage').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            
-            document.getElementById('userName').textContent = currentTeacher.name;
-            document.getElementById('userAvatar').textContent = currentTeacher.name[0].toUpperCase();
-            
-            const roleBadge = document.getElementById('userRoleBadge');
-            if (currentTeacher.role === 'super_admin') {
-                roleBadge.innerHTML = '👑 Super Admin';
-                roleBadge.className = 'badge badge-super';
-                document.getElementById('adminNavBtn').style.display = 'block';
-            } else {
-                roleBadge.innerHTML = '👨‍🏫 Teacher';
-                roleBadge.className = 'badge badge-teacher';
-            }
-            
-            await loadAllData();
-        }
-    }
-}
-
 // ============================================
 // DATA LOADING FUNCTIONS
 // ============================================
-
-const TEACHER_ID = currentTeacher?.id || '9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89';
 
 async function loadAllData() {
     if (!currentTeacher) return;
@@ -709,6 +671,7 @@ async function loadStats() {
         <p>📊 Database: Supabase connected</p>
         <p>🤖 Gemini AI: Active</p>
         <p>👑 Role: ${currentTeacher?.role === 'super_admin' ? 'Super Admin' : 'Teacher'}</p>
+        <p>📧 Logged in as: ${currentTeacher?.email}</p>
     `;
 }
 
@@ -717,7 +680,7 @@ async function loadNotes() {
     const notes = await api('daily_notes', { filter: { column: 'teacher_id', value: teacherId }, order: { column: 'note_date' } });
     if (notes?.length) {
         document.getElementById('notesTable').innerHTML = `
-            <thead><tr><th>Date</th><th>Title</th><th>Actions</th></tr></thead>
+            <thead> <th>Date</th><th>Title</th><th>Actions</th> </thead>
             <tbody>${notes.map(n => `
                 <tr>
                     <td>${n.note_date}</td>
@@ -736,7 +699,7 @@ async function loadQuestions() {
     const questions = await api('questions', { filter: { column: 'teacher_id', value: teacherId } });
     if (questions?.length) {
         document.getElementById('questionsTable').innerHTML = `
-            <thead><tr><th>Question</th><th>Answer</th><th>Actions</th></tr></thead>
+            <thead><th>Question</th><th>Answer</th><th>Actions</th></thead>
             <tbody>${questions.map(q => `
                 <tr>
                     <td>${escapeHtml(q.question_text.substring(0, 60))}...</td>
@@ -755,7 +718,7 @@ async function loadBooks() {
     const books = await api('books', { filter: { column: 'teacher_id', value: teacherId } });
     if (books?.length) {
         document.getElementById('booksTable').innerHTML = `
-            <thead><tr><th>Title</th><th>Author</th><th>Actions</th></tr></thead>
+            <thead><th>Title</th><th>Author</th><th>Actions</th></thead>
             <tbody>${books.map(b => `
                 <tr>
                     <td><strong>${escapeHtml(b.title)}</strong></td>
@@ -774,7 +737,7 @@ async function loadStudents() {
     const students = await api('students', { filter: { column: 'teacher_id', value: teacherId } });
     if (students?.length) {
         document.getElementById('studentsTable').innerHTML = `
-            <thead><tr><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></tr></thead>
+            <thead><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></thead>
             <tbody>${students.map(s => `
                 <tr>
                     <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
@@ -794,14 +757,13 @@ async function loadTeachers() {
     const teachers = await api('teachers', { order: { column: 'created_at' } });
     if (teachers?.length) {
         document.getElementById('teachersTable').innerHTML = `
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <thead><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></thead>
             <tbody>${teachers.map(t => `
                 <tr>
                     <td><strong>${escapeHtml(t.name)}</strong></td>
                     <td>${escapeHtml(t.email)}</td>
-                    <td><span class="badge ${t.role === 'super_admin' ? 'badge-super' : 'badge-teacher'}">${t.role || 'teacher'}</span></td>
-                    <td><span class="badge ${t.is_active ? 'badge-active' : 'badge-inactive'}">${t.is_active ? 'Active' : 'Blocked'}</span></td>
-                    <td>${new Date(t.created_at).toLocaleDateString()}</td>
+                    <td><span class="${t.role === 'super_admin' ? 'badge-super' : 'badge-teacher'}">${t.role || 'teacher'}</span></td>
+                    <td><span style="color:${t.is_active ? '#22c55e' : '#ef4444'}">${t.is_active ? 'Active' : 'Blocked'}</span></td>
                     <td>
                         <button class="btn-small ${t.is_active ? 'btn-warning' : 'btn-success'}" onclick="toggleTeacherStatus('${t.id}', ${!t.is_active})">
                             ${t.is_active ? '🔒 Block' : '✅ Unblock'}
@@ -835,8 +797,8 @@ async function loadSystemOverview() {
 }
 
 async function createTeacher() {
-    const name = document.getElementById('teacherName').value;
-    const email = document.getElementById('teacherEmail').value;
+    const name = document.getElementById('teacherName').value.trim();
+    const email = document.getElementById('teacherEmail').value.trim();
     const password = document.getElementById('teacherPassword').value;
     const role = document.getElementById('teacherRole').value;
     
@@ -846,26 +808,17 @@ async function createTeacher() {
     }
     
     try {
-        // Create auth user
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-            email: email,
-            password: password,
-            email_confirm: true,
-            user_metadata: { name: name }
-        });
+        const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
         
-        if (authError) throw authError;
-        
-        // Create teacher record
         await api('teachers', { 
             method: 'POST', 
             data: { 
-                id: authData.user.id,
+                id: newId,
                 email: email, 
                 name: name, 
                 role: role,
-                auth_id: authData.user.id,
-                is_active: true 
+                is_active: true,
+                password_hash: password
             } 
         });
         
@@ -896,10 +849,6 @@ async function toggleTeacherStatus(id, activate) {
 async function deleteTeacher(id) {
     if (!confirm('Delete this teacher? This will delete all their data!')) return;
     try {
-        // Delete auth user first
-        const { error: authError } = await supabase.auth.admin.deleteUser(id);
-        if (authError) console.error('Auth delete error:', authError);
-        
         await api(`teachers?id=eq.${id}`, { method: 'DELETE' });
         await loadTeachers();
         await loadSystemOverview();
@@ -995,9 +944,6 @@ function escapeHtml(str) {
     if (!str) return ''; 
     return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); 
 }
-
-// Initialize
-checkSession();
 </script>
 </body>
 </html>
