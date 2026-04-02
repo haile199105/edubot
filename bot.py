@@ -16,14 +16,8 @@ GEMINI_KEY = os.environ.get("GEMINI_KEY")
 TEACHER_ID = os.environ.get("TEACHER_ID")
 
 # Validate credentials
-if not BOT_TOKEN:
-    raise Exception("❌ BOT_TOKEN not set in environment variables")
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise Exception("❌ Supabase credentials not set")
-if not GEMINI_KEY:
-    raise Exception("❌ GEMINI_KEY not set")
-if not TEACHER_ID:
-    raise Exception("❌ TEACHER_ID not set")
+if not all([BOT_TOKEN, SUPABASE_URL, SUPABASE_KEY, GEMINI_KEY, TEACHER_ID]):
+    raise Exception("❌ Missing required environment variables")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -84,17 +78,17 @@ def save_student(telegram_user):
     else:
         supabase_query("students", "POST", data)
 
-def update_student_subject(telegram_id, subject_id):
-    supabase_query(f"students?telegram_id=eq.{telegram_id}", "PATCH", {"subject_id": subject_id})
-
 def update_student_grade(telegram_id, grade_id):
     supabase_query(f"students?telegram_id=eq.{telegram_id}", "PATCH", {"grade_level_id": grade_id})
 
-def get_subjects():
-    return supabase_query(f"subjects?teacher_id=eq.{TEACHER_ID}&is_active=eq.true")
+def update_student_subject(telegram_id, subject_id):
+    supabase_query(f"students?telegram_id=eq.{telegram_id}", "PATCH", {"subject_id": subject_id})
 
-def get_grade_levels(subject_id):
-    return supabase_query(f"grade_levels?teacher_id=eq.{TEACHER_ID}&subject_id=eq.{subject_id}&is_active=eq.true&order=order_index.asc")
+def get_grade_levels():
+    return supabase_query(f"grade_levels?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&order=order_index.asc")
+
+def get_subjects_by_grade(grade_id):
+    return supabase_query(f"subjects?teacher_id=eq.{TEACHER_ID}&is_active=eq.true")
 
 def get_daily_note(subject_id=None, grade_id=None):
     try:
@@ -109,6 +103,14 @@ def get_daily_note(subject_id=None, grade_id=None):
         return None
     except:
         return None
+
+def get_all_notes(subject_id=None, grade_id=None):
+    query = f"daily_notes?teacher_id=eq.{TEACHER_ID}&is_published=eq.true&order=note_date.desc&limit=10"
+    if subject_id:
+        query += f"&subject_id=eq.{subject_id}"
+    if grade_id:
+        query += f"&grade_level_id=eq.{grade_id}"
+    return supabase_query(query)
 
 def get_questions(subject_id=None, grade_id=None, limit=5):
     query = f"questions?teacher_id=eq.{TEACHER_ID}&is_active=eq.true"
@@ -127,107 +129,62 @@ def get_books(subject_id=None, grade_id=None):
         query += f"&grade_level_id=eq.{grade_id}"
     return supabase_query(query)
 
-def get_quizzes(subject_id=None, grade_id=None):
-    query = f"quizzes?teacher_id=eq.{TEACHER_ID}&is_active=eq.true"
-    if subject_id:
-        query += f"&subject_id=eq.{subject_id}"
-    if grade_id:
-        query += f"&grade_level_id=eq.{grade_id}"
-    return supabase_query(query)
-
-def save_quiz_attempt(quiz_id, student_id, score, total, percentage):
-    data = {
-        "quiz_id": quiz_id,
-        "student_id": student_id,
-        "score": score,
-        "total_points": total,
-        "percentage": percentage
-    }
-    supabase_query("quiz_attempts", "POST", data)
+def get_recommended_content(student_id):
+    student = get_student(student_id)
+    if not student:
+        return []
+    return get_questions(student.get('subject_id'), student.get('grade_level_id'), 3)
 
 # ============================================
-# TELEGRAM HANDLERS
+# MAIN MENU
 # ============================================
 
 async def start(update: Update, context):
     user = update.effective_user
     save_student(user)
     
-    keyboard = [
-        [InlineKeyboardButton("📚 Select Subject", callback_data="select_subject")],
-        [InlineKeyboardButton("🎓 Select Grade", callback_data="select_grade")],
-        [InlineKeyboardButton("📝 Daily Note", callback_data="daily")],
-        [InlineKeyboardButton("❓ Questions", callback_data="questions")],
-        [InlineKeyboardButton("📖 Books", callback_data="books")],
-        [InlineKeyboardButton("🎯 Take Quiz", callback_data="quizzes")],
-        [InlineKeyboardButton("🤖 Ask AI", callback_data="ask")],
-        [InlineKeyboardButton("📊 My Progress", callback_data="progress")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    # Check if user has already selected grade and subject
+    student = get_student(user.id)
+    
+    if student and student.get('grade_level_id') and student.get('subject_id'):
+        await show_main_menu(update, context)
+    else:
+        await show_onboarding(update, context)
+
+async def show_onboarding(update: Update, context):
+    """Step 1: Ask for grade level"""
+    grades = get_grade_levels()
+    
+    if not grades:
+        await update.message.reply_text(
+            "📚 *Welcome to EduBot!*\n\n"
+            "I'm your AI learning assistant. Please wait while we set up your account...\n\n"
+            "⚠️ No grade levels available yet. Please contact your teacher.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # Group grades by type (secondary vs college)
+    secondary_grades = [g for g in grades if g.get('level_type') == 'secondary']
+    college_grades = [g for g in grades if g.get('level_type') == 'college']
+    
+    keyboard = []
+    
+    if secondary_grades:
+        keyboard.append([InlineKeyboardButton("📚 Secondary School", callback_data="level_secondary")])
+        for grade in secondary_grades[:6]:
+            keyboard.append([InlineKeyboardButton(f"   📖 {grade['name']}", callback_data=f"grade_{grade['id']}")])
+    
+    if college_grades:
+        keyboard.append([InlineKeyboardButton("🎓 College/University", callback_data="level_college")])
+        for grade in college_grades:
+            year_display = f"Year {grade['year']}" if grade.get('year') else grade['name']
+            keyboard.append([InlineKeyboardButton(f"   🎓 {year_display}", callback_data=f"grade_{grade['id']}")])
     
     await update.message.reply_text(
-        f"🎓 *Welcome {user.first_name}!*\n\n"
-        f"I'm EduBot - your AI learning assistant.\n\n"
-        f"First, select your subject and grade level to get personalized content!\n\n"
-        f"Click the buttons below to get started 🚀",
-        parse_mode='Markdown',
-        reply_markup=reply_markup
-    )
-
-async def select_subject(update: Update, context):
-    subjects = get_subjects()
-    if not subjects:
-        await update.callback_query.message.reply_text("No subjects available yet.")
-        return
-    
-    keyboard = []
-    for subj in subjects:
-        keyboard.append([InlineKeyboardButton(f"{subj.get('icon', '📚')} {subj['name']}", callback_data=f"subject_{subj['id']}")])
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back")])
-    
-    await update.callback_query.message.edit_text(
-        "📚 *Select your subject:*\n\nChoose the subject you're studying:",
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-async def subject_selected(update: Update, context):
-    query = update.callback_query
-    subject_id = query.data.split('_')[1]
-    
-    context.user_data['subject_id'] = subject_id
-    update_student_subject(query.from_user.id, subject_id)
-    
-    subjects = get_subjects()
-    subject_name = next((s['name'] for s in subjects if s['id'] == subject_id), "Subject")
-    
-    await query.message.edit_text(
-        f"✅ *Subject selected: {subject_name}*\n\n"
-        f"Now select your grade level using the button below 👇",
-        parse_mode='Markdown'
-    )
-    await select_grade(update, context)
-
-async def select_grade(update: Update, context):
-    subject_id = context.user_data.get('subject_id')
-    if not subject_id:
-        await update.callback_query.message.reply_text("Please select a subject first.")
-        await select_subject(update, context)
-        return
-    
-    grades = get_grade_levels(subject_id)
-    if not grades:
-        await update.callback_query.message.reply_text("No grade levels available for this subject yet.")
-        return
-    
-    keyboard = []
-    for grade in grades:
-        emoji = "🎓" if grade.get('level_type') == 'college' else "📚"
-        keyboard.append([InlineKeyboardButton(f"{emoji} {grade['name']}", callback_data=f"grade_{grade['id']}")])
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_subject")])
-    
-    await update.callback_query.message.edit_text(
-        "🎓 *Select your grade/level:*\n\nChoose your current grade level:",
+        "🎓 *Welcome to EduBot!*\n\n"
+        "I'm your personal AI learning assistant. Let me help you learn better!\n\n"
+        "*Step 1:* Select your education level 👇",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -236,51 +193,183 @@ async def grade_selected(update: Update, context):
     query = update.callback_query
     grade_id = query.data.split('_')[1]
     
-    context.user_data['grade_id'] = grade_id
+    context.user_data['selected_grade_id'] = grade_id
     update_student_grade(query.from_user.id, grade_id)
     
+    # Get subjects for this grade
+    subjects = get_subjects_by_grade(grade_id)
+    
+    if not subjects:
+        await query.message.edit_text(
+            "⚠️ No subjects available for this grade level yet.\n\n"
+            "Please contact your teacher to add subjects.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    keyboard = []
+    for subject in subjects:
+        icon = subject.get('icon', '📚')
+        keyboard.append([InlineKeyboardButton(f"{icon} {subject['name']}", callback_data=f"subject_{subject['id']}")])
+    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_grades")])
+    
     await query.message.edit_text(
-        f"✅ *All set!*\n\n"
-        f"Now you can use:\n"
-        f"📝 /daily - Today's note\n"
-        f"❓ /questions - Practice questions\n"
-        f"📖 /books - Recommended books\n"
-        f"🎯 /quiz - Take a quiz\n"
-        f"🤖 /ask - Ask AI anything\n"
-        f"📊 /progress - View your progress",
+        "🎓 *Step 2:* Select your subject 👇\n\n"
+        "Choose the subject you're studying:",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def subject_selected(update: Update, context):
+    query = update.callback_query
+    subject_id = query.data.split('_')[1]
+    
+    context.user_data['selected_subject_id'] = subject_id
+    update_student_subject(query.from_user.id, subject_id)
+    
+    await query.message.edit_text(
+        "✅ *Setup Complete!*\n\n"
+        "You're all set to start learning!\n\n"
+        "Here's your personalized dashboard 👇",
         parse_mode='Markdown'
     )
+    
+    await show_main_menu(update, context)
+
+# ============================================
+# MAIN MENU (After Setup)
+# ============================================
+
+async def show_main_menu(update: Update, context):
+    """Show main dashboard with all options"""
+    user_id = update.effective_user.id
+    student = get_student(user_id)
+    
+    # Get recommended content
+    recommendations = get_recommended_content(user_id)
+    
+    welcome_text = f"🎓 *Welcome back!*\n\n"
+    welcome_text += f"📚 *Your Learning Path:*\n"
+    
+    if student:
+        # Get grade and subject names
+        grade = supabase_query(f"grade_levels?id=eq.{student.get('grade_level_id')}&select=name")
+        subject = supabase_query(f"subjects?id=eq.{student.get('subject_id')}&select=name,icon")
+        if grade:
+            welcome_text += f"🎓 Grade: *{grade[0]['name']}*\n"
+        if subject:
+            welcome_text += f"📖 Subject: *{subject[0]['icon']} {subject[0]['name']}*\n"
+    
+    welcome_text += f"\n✨ *Quick Actions:*\n"
+    
+    keyboard = [
+        [InlineKeyboardButton("📝 Today's Note", callback_data="daily")],
+        [InlineKeyboardButton("❓ Practice Questions", callback_data="questions")],
+        [InlineKeyboardButton("📚 Books", callback_data="books")],
+        [InlineKeyboardButton("🎯 Take a Quiz", callback_data="quiz")],
+        [InlineKeyboardButton("🤖 Ask AI Assistant", callback_data="ask_ai")],
+        [InlineKeyboardButton("📋 All Notes", callback_data="all_notes")],
+        [InlineKeyboardButton("📊 My Progress", callback_data="progress")],
+        [InlineKeyboardButton("🔄 Change Subject/Grade", callback_data="change_settings")],
+        [InlineKeyboardButton("❓ Help", callback_data="help")]
+    ]
+    
+    # Add recommendations if available
+    if recommendations:
+        welcome_text += f"\n💡 *Recommended for you:*\n"
+        for i, rec in enumerate(recommendations[:2], 1):
+            welcome_text += f"{i}. {rec['question_text'][:50]}...\n"
+        keyboard.insert(2, [InlineKeyboardButton("⭐ Recommended Questions", callback_data="recommended")])
+    
+    await update.callback_query.message.edit_text(
+        welcome_text,
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ============================================
+# FEATURE HANDLERS
+# ============================================
 
 async def daily_note(update: Update, context):
     user_id = update.effective_user.id
     student = get_student(user_id)
     
-    subject_id = student.get('subject_id') if student else context.user_data.get('subject_id')
-    grade_id = student.get('grade_level_id') if student else context.user_data.get('grade_id')
+    if not student or not student.get('subject_id'):
+        await update.callback_query.message.reply_text(
+            "⚠️ Please set up your learning path first.\n\n"
+            "Click 'Change Subject/Grade' to get started.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Change Settings", callback_data="change_settings")]])
+        )
+        return
     
-    note = get_daily_note(subject_id, grade_id)
+    note = get_daily_note(student.get('subject_id'), student.get('grade_level_id'))
     
     if note:
-        await update.message.reply_text(
-            f"📝 *Today's Note*\n\n"
-            f"**{note['title']}**\n\n"
-            f"{note['content']}",
-            parse_mode='Markdown'
+        text = f"📝 *Today's Note*\n\n"
+        text += f"**{note['title']}**\n\n"
+        text += note['content']
+        
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+        await update.callback_query.message.edit_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        await update.message.reply_text(
-            "📭 No note available for your subject and grade today.\n\n"
-            "Check back later or select a different subject/grade using /start"
+        await update.callback_query.message.edit_text(
+            "📭 *No note for today*\n\n"
+            "Check back later or try a different subject.\n\n"
+            "💡 Tip: Ask your teacher to add daily notes!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]])
         )
 
-async def questions_list(update: Update, context):
+async def all_notes(update: Update, context):
     user_id = update.effective_user.id
     student = get_student(user_id)
     
-    subject_id = student.get('subject_id') if student else context.user_data.get('subject_id')
-    grade_id = student.get('grade_level_id') if student else context.user_data.get('grade_id')
+    if not student or not student.get('subject_id'):
+        await update.callback_query.message.reply_text(
+            "⚠️ Please set up your learning path first.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Change Settings", callback_data="change_settings")]])
+        )
+        return
     
-    questions = get_questions(subject_id, grade_id)
+    notes = get_all_notes(student.get('subject_id'), student.get('grade_level_id'))
+    
+    if notes:
+        text = "📋 *All Notes*\n\n"
+        for n in notes[:5]:
+            text += f"📅 **{n['note_date']}** - {n['title']}\n"
+            text += f"{n['content'][:100]}...\n\n"
+        
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+        await update.callback_query.message.edit_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        await update.callback_query.message.edit_text(
+            "📭 *No notes available*\n\n"
+            "Check back later for new content!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]])
+        )
+
+async def practice_questions(update: Update, context):
+    user_id = update.effective_user.id
+    student = get_student(user_id)
+    
+    if not student or not student.get('subject_id'):
+        await update.callback_query.message.reply_text(
+            "⚠️ Please set up your learning path first.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Change Settings", callback_data="change_settings")]])
+        )
+        return
+    
+    questions = get_questions(student.get('subject_id'), student.get('grade_level_id'))
     
     if questions:
         context.user_data['current_questions'] = questions
@@ -289,40 +378,56 @@ async def questions_list(update: Update, context):
         for i, q in enumerate(questions, 1):
             difficulty_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}.get(q.get('difficulty'), "🟡")
             text += f"{i}. {difficulty_emoji} {q['question_text']}\n\n"
-        text += "💡 Type `/answer [number]` to see the answer"
         
-        await update.message.reply_text(text, parse_mode='Markdown')
+        keyboard = []
+        for i, q in enumerate(questions, 1):
+            keyboard.append([InlineKeyboardButton(f"📝 Show Answer #{i}", callback_data=f"show_answer_{i-1}")])
+        keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")])
+        
+        await update.callback_query.message.edit_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     else:
-        await update.message.reply_text("❓ No questions available for your selection yet.")
+        await update.callback_query.message.edit_text(
+            "❓ *No questions available*\n\n"
+            "Check back later for new practice questions!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]])
+        )
 
-async def answer_command(update: Update, context):
-    if not context.args:
-        await update.message.reply_text("Example: `/answer 1`", parse_mode='Markdown')
-        return
+async def show_answer(update: Update, context):
+    query = update.callback_query
+    index = int(query.data.split('_')[2])
+    questions = context.user_data.get('current_questions', [])
     
-    try:
-        num = int(context.args[0]) - 1
-        questions = context.user_data.get('current_questions', [])
+    if 0 <= index < len(questions):
+        q = questions[index]
+        text = f"❓ *Question:* {q['question_text']}\n\n"
+        text += f"✅ *Answer:* {q['answer']}\n"
+        if q.get('explanation'):
+            text += f"\n💡 *Explanation:* {q['explanation']}"
         
-        if 0 <= num < len(questions):
-            q = questions[num]
-            response = f"❓ *Question:* {q['question_text']}\n\n✅ *Answer:* {q['answer']}"
-            if q.get('explanation'):
-                response += f"\n\n💡 *Explanation:* {q['explanation']}"
-            await update.message.reply_text(response, parse_mode='Markdown')
-        else:
-            await update.message.reply_text("Question not found. Use /questions first.")
-    except:
-        await update.message.reply_text("Please provide a valid number.")
+        keyboard = [[InlineKeyboardButton("🔙 Back to Questions", callback_data="questions")]]
+        await query.message.edit_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 async def books_list(update: Update, context):
     user_id = update.effective_user.id
     student = get_student(user_id)
     
-    subject_id = student.get('subject_id') if student else context.user_data.get('subject_id')
-    grade_id = student.get('grade_level_id') if student else context.user_data.get('grade_id')
+    if not student or not student.get('subject_id'):
+        await update.callback_query.message.reply_text(
+            "⚠️ Please set up your learning path first.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Change Settings", callback_data="change_settings")]])
+        )
+        return
     
-    books = get_books(subject_id, grade_id)
+    books = get_books(student.get('subject_id'), student.get('grade_level_id'))
     
     if books:
         text = "📚 *Recommended Books*\n\n"
@@ -330,53 +435,51 @@ async def books_list(update: Update, context):
             text += f"📖 **{b['title']}**\n"
             if b.get('author'):
                 text += f"✍️ {b['author']}\n"
+            if b.get('description'):
+                text += f"📝 {b['description'][:100]}...\n"
             if b.get('file_url'):
                 text += f"🔗 [Download/View]({b['file_url']})\n"
             text += "\n"
-        await update.message.reply_text(text, parse_mode='Markdown')
-    else:
-        await update.message.reply_text("📚 No books available for your selection yet.")
-
-async def quizzes_list(update: Update, context):
-    user_id = update.effective_user.id
-    student = get_student(user_id)
-    
-    subject_id = student.get('subject_id') if student else context.user_data.get('subject_id')
-    grade_id = student.get('grade_level_id') if student else context.user_data.get('grade_id')
-    
-    quizzes = get_quizzes(subject_id, grade_id)
-    
-    if quizzes:
-        keyboard = []
-        for q in quizzes:
-            keyboard.append([InlineKeyboardButton(f"📝 {q['title']}", callback_data=f"quiz_{q['id']}")])
-        keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back")])
         
-        await update.message.reply_text(
-            "🎯 *Available Quizzes*\n\nSelect a quiz to start:",
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+        await update.callback_query.message.edit_text(
+            text,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        await update.message.reply_text("🎯 No quizzes available for your selection yet.")
-
-async def ask_ai(update: Update, context):
-    if not context.args:
-        await update.message.reply_text(
-            "🤖 *Ask me anything!*\n\n"
-            "Examples:\n"
-            "/ask What is democracy?\n"
-            "/ask Explain quantum physics\n"
-            "/ask Help me understand algebra",
-            parse_mode='Markdown'
+        await update.callback_query.message.edit_text(
+            "📚 *No books available*\n\n"
+            "Check back later for new resources!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]])
         )
+
+async def ask_ai_prompt(update: Update, context):
+    await update.callback_query.message.edit_text(
+        "🤖 *Ask Me Anything!*\n\n"
+        "Type your question below and I'll help you learn.\n\n"
+        "Examples:\n"
+        "• Explain photosynthesis\n"
+        "• What is the Pythagorean theorem?\n"
+        "• Help me understand algebra\n\n"
+        "Just type your question and send it!",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]])
+    )
+    context.user_data['awaiting_question'] = True
+
+async def handle_question(update: Update, context):
+    if not context.user_data.get('awaiting_question'):
         return
     
-    question = ' '.join(context.args)
+    question = update.message.text
+    context.user_data['awaiting_question'] = False
+    
     thinking_msg = await update.message.reply_text("🤔 Thinking...")
     
     if model is None:
-        await thinking_msg.edit_text("⚠️ AI service is not configured. Please contact administrator.")
+        await thinking_msg.edit_text("⚠️ AI service is not configured.")
         return
     
     try:
@@ -386,95 +489,178 @@ async def ask_ai(update: Update, context):
             answer = response.text
             if len(answer) > 4000:
                 answer = answer[:4000] + "..."
-            await thinking_msg.edit_text(f"💡 *Answer:*\n\n{answer}", parse_mode='Markdown')
+            
+            keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+            await thinking_msg.delete()
+            await update.message.reply_text(
+                f"💡 *Answer:*\n\n{answer}",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
         else:
-            await thinking_msg.edit_text("⚠️ Sorry, I couldn't generate an answer. Please try again.")
+            await thinking_msg.edit_text("⚠️ Sorry, I couldn't generate an answer.")
     except Exception as e:
         logger.error(f"Gemini error: {e}")
         await thinking_msg.edit_text("⚠️ AI service is busy. Please try again in a moment.")
+
+async def change_settings(update: Update, context):
+    await show_onboarding(update, context)
 
 async def show_progress(update: Update, context):
     user_id = update.effective_user.id
     student = get_student(user_id)
     
     if not student:
-        await update.message.reply_text("Please setup your profile using /start first.")
+        await update.callback_query.message.reply_text(
+            "⚠️ Please set up your learning path first.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Change Settings", callback_data="change_settings")]])
+        )
         return
     
+    # Get quiz attempts
     attempts = supabase_query(f"quiz_attempts?student_id=eq.{student['id']}&order=completed_at.desc&limit=10")
     
+    text = "📊 *Your Learning Progress*\n\n"
+    
+    if student.get('grade_level_id'):
+        grade = supabase_query(f"grade_levels?id=eq.{student['grade_level_id']}&select=name")
+        if grade:
+            text += f"🎓 *Grade:* {grade[0]['name']}\n"
+    
+    if student.get('subject_id'):
+        subject = supabase_query(f"subjects?id=eq.{student['subject_id']}&select=name,icon")
+        if subject:
+            text += f"📖 *Subject:* {subject[0]['icon']} {subject[0]['name']}\n"
+    
+    text += f"\n📅 *Member since:* {student['enrolled_at'][:10] if student.get('enrolled_at') else 'Recently'}\n\n"
+    
     if attempts:
-        text = "📊 *Your Learning Progress*\n\n"
         text += "*Recent Quiz Scores:*\n"
         for a in attempts:
-            text += f"• Score: {a.get('score', 0)}/{a.get('total_points', 0)} ({a.get('percentage', 0)}%)\n"
-        await update.message.reply_text(text, parse_mode='Markdown')
+            percentage = a.get('percentage', 0)
+            emoji = "🎉" if percentage >= 80 else "👍" if percentage >= 60 else "📚"
+            text += f"{emoji} Score: {a.get('score', 0)}/{a.get('total_points', 0)} ({percentage}%)\n"
     else:
-        await update.message.reply_text(
-            "📊 *Your Learning Progress*\n\n"
-            "Take quizzes to see your progress! Use /quiz",
-            parse_mode='Markdown'
+        text += "📝 *No quiz attempts yet*\n"
+        text += "Take your first quiz using the 'Take a Quiz' button!"
+    
+    keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+    await update.callback_query.message.edit_text(
+        text,
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def show_help(update: Update, context):
+    text = "❓ *EduBot Help Center*\n\n"
+    text += "*What can I do?*\n"
+    text += "📝 • Get daily learning notes\n"
+    text += "❓ • Practice with questions\n"
+    text += "📚 • Access recommended books\n"
+    text += "🎯 • Take quizzes to test knowledge\n"
+    text += "🤖 • Ask AI any question\n"
+    text += "📊 • Track your progress\n\n"
+    text += "*Need more help?*\n"
+    text += "Contact your teacher for assistance!"
+    
+    keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+    await update.callback_query.message.edit_text(
+        text,
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def recommended_content(update: Update, context):
+    user_id = update.effective_user.id
+    recommendations = get_recommended_content(user_id)
+    
+    if recommendations:
+        text = "⭐ *Recommended for You*\n\n"
+        for i, rec in enumerate(recommendations, 1):
+            text += f"{i}. {rec['question_text']}\n"
+            text += f"   ✅ Answer: {rec['answer']}\n\n"
+        
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+        await update.callback_query.message.edit_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
+    else:
+        await update.callback_query.message.edit_text(
+            "⭐ *No recommendations yet*\n\n"
+            "Keep learning and we'll suggest content for you!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]])
+        )
+
+# ============================================
+# CALLBACK HANDLER
+# ============================================
 
 async def button_callback(update: Update, context):
     query = update.callback_query
     await query.answer()
     
-    if query.data == "select_subject":
-        await select_subject(update, context)
-    elif query.data == "select_grade":
-        await select_grade(update, context)
-    elif query.data.startswith("subject_"):
-        await subject_selected(update, context)
+    if query.data == "menu":
+        await show_main_menu(update, context)
     elif query.data.startswith("grade_"):
         await grade_selected(update, context)
+    elif query.data.startswith("subject_"):
+        await subject_selected(update, context)
     elif query.data == "daily":
         await daily_note(update, context)
+    elif query.data == "all_notes":
+        await all_notes(update, context)
     elif query.data == "questions":
-        await questions_list(update, context)
+        await practice_questions(update, context)
+    elif query.data.startswith("show_answer_"):
+        await show_answer(update, context)
     elif query.data == "books":
         await books_list(update, context)
-    elif query.data == "quizzes":
-        await quizzes_list(update, context)
-    elif query.data == "ask":
-        await query.message.reply_text("Type: `/ask Your question here`", parse_mode='Markdown')
+    elif query.data == "quiz":
+        await update.callback_query.message.reply_text("🎯 Quiz feature coming soon!")
+    elif query.data == "ask_ai":
+        await ask_ai_prompt(update, context)
     elif query.data == "progress":
         await show_progress(update, context)
-    elif query.data == "back":
-        await start(update, context)
-    elif query.data == "back_to_subject":
-        await select_subject(update, context)
-
-async def error_handler(update: Update, context):
-    logger.error(f"Error: {context.error}")
+    elif query.data == "change_settings":
+        await change_settings(update, context)
+    elif query.data == "help":
+        await show_help(update, context)
+    elif query.data == "recommended":
+        await recommended_content(update, context)
+    elif query.data == "back_to_grades":
+        await show_onboarding(update, context)
 
 # ============================================
 # MAIN
 # ============================================
+
+async def error_handler(update: Update, context):
+    logger.error(f"Error: {context.error}")
 
 def main():
     print("=" * 50)
     print("🤖 EduBot Starting...")
     print("=" * 50)
     print(f"BOT_TOKEN: {'✅ Set' if BOT_TOKEN else '❌ Missing'}")
-    print(f"SUPABASE_URL: {'✅ Set' if SUPABASE_URL else '❌ Missing'}")
-    print(f"SUPABASE_KEY: {'✅ Set' if SUPABASE_KEY else '❌ Missing'}")
-    print(f"GEMINI_KEY: {'✅ Set' if GEMINI_KEY else '❌ Missing'}")
-    print(f"TEACHER_ID: {'✅ Set' if TEACHER_ID else '❌ Missing'}")
-    print(f"Gemini Model: {'✅ Ready' if model else '❌ Failed'}")
+    print(f"Gemini: {'✅ Ready' if model else '❌ Failed'}")
     print("=" * 50)
     
     app = Application.builder().token(BOT_TOKEN).build()
     
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("daily", daily_note))
-    app.add_handler(CommandHandler("questions", questions_list))
-    app.add_handler(CommandHandler("answer", answer_command))
-    app.add_handler(CommandHandler("books", books_list))
-    app.add_handler(CommandHandler("quiz", quizzes_list))
-    app.add_handler(CommandHandler("ask", ask_ai))
-    app.add_handler(CommandHandler("progress", show_progress))
+    app.add_handler(CommandHandler("ask", handle_question))
+    
+    # Message handler for AI questions
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_question))
+    
+    # Callback handler for buttons
     app.add_handler(CallbackQueryHandler(button_callback))
+    
+    # Error handler
     app.add_error_handler(error_handler)
     
     print("✅ Bot is running!")
