@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduBot Power Dashboard</title>
+    <title>EduBot - Complete Learning Management System</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -30,7 +30,8 @@
             width: 100%;
             border: 1px solid #334155;
         }
-        .login-card h1 { text-align: center; margin-bottom: 10px; }
+        .login-card h1 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; }
+        .login-card p { text-align: center; color: #94a3b8; margin-bottom: 30px; }
         .login-card input, .login-card select {
             width: 100%;
             padding: 12px;
@@ -39,16 +40,20 @@
             border: 1px solid #334155;
             border-radius: 10px;
             color: white;
+            font-size: 1rem;
         }
         .login-card button {
             width: 100%;
             padding: 12px;
             background: #6366f1;
+            color: white;
             border: none;
             border-radius: 10px;
-            color: white;
+            font-size: 1rem;
             cursor: pointer;
         }
+        .login-card button:hover { background: #4f46e5; }
+        .error-msg { color: #ef4444; text-align: center; margin-top: 15px; }
         
         /* Dashboard */
         .dashboard { display: none; }
@@ -61,10 +66,11 @@
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            gap: 20px;
         }
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -76,6 +82,7 @@
             text-align: center;
         }
         .stat-card .value { font-size: 2rem; font-weight: bold; color: #6366f1; }
+        .stat-card .label { font-size: 0.8rem; color: #94a3b8; margin-top: 5px; }
         
         .nav {
             display: flex;
@@ -92,11 +99,14 @@
             padding: 10px 20px;
             border-radius: 40px;
             cursor: pointer;
+            transition: all 0.2s;
         }
         .nav-btn.active {
             background: #6366f1;
             color: white;
+            border-color: #6366f1;
         }
+        .nav-btn:hover { background: #334155; color: white; }
         
         .card {
             background: #1e293b;
@@ -108,14 +118,33 @@
         .card-header {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
             flex-wrap: wrap;
             gap: 15px;
         }
+        .card-header h2 { font-size: 1.3rem; }
+        
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filter-bar select, .filter-bar input {
+            padding: 8px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: white;
+            min-width: 150px;
+        }
         
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
-        th { color: #94a3b8; }
+        th { color: #94a3b8; font-size: 0.8rem; font-weight: 500; }
+        td { font-size: 0.9rem; }
         
         button {
             background: #6366f1;
@@ -124,10 +153,15 @@
             padding: 8px 16px;
             border-radius: 10px;
             cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
         }
+        button:hover { background: #4f46e5; transform: scale(0.98); }
         .btn-small { padding: 4px 10px; font-size: 0.75rem; }
         .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
         .btn-success { background: #22c55e; }
+        .btn-success:hover { background: #16a34a; }
         
         input, textarea, select {
             width: 100%;
@@ -137,7 +171,9 @@
             border: 1px solid #334155;
             border-radius: 10px;
             color: white;
+            font-family: inherit;
         }
+        textarea { min-height: 100px; resize: vertical; }
         
         .modal {
             display: none;
@@ -157,32 +193,25 @@
             border-radius: 20px;
             max-width: 600px;
             width: 90%;
-            max-height: 80vh;
+            max-height: 85vh;
             overflow-y: auto;
         }
-        
-        .filter-bar {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .filter-bar select {
-            width: auto;
-            min-width: 150px;
-            margin-bottom: 0;
-        }
+        .modal-content h3 { margin-bottom: 20px; font-size: 1.2rem; }
         
         .badge {
             display: inline-block;
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.7rem;
+            font-weight: 500;
         }
-        .badge-super { background: #f59e0b20; color: #f59e0b; }
-        .badge-teacher { background: #6366f120; color: #6366f1; }
+        .badge-primary { background: #6366f120; color: #6366f1; }
+        .badge-secondary { background: #22c55e20; color: #22c55e; }
+        .badge-tvet { background: #f59e0b20; color: #f59e0b; }
+        .badge-degree { background: #8b5cf620; color: #8b5cf6; }
+        .badge-post { background: #ec489920; color: #ec4899; }
         
+        .empty { text-align: center; padding: 40px; color: #64748b; }
         .toast {
             position: fixed;
             bottom: 20px;
@@ -194,14 +223,22 @@
             display: none;
             z-index: 2000;
         }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            th, td { font-size: 0.7rem; padding: 8px; }
+            .card-header { flex-direction: column; align-items: stretch; }
+            .filter-bar { flex-direction: column; }
+            .filter-bar select { width: 100%; }
+        }
     </style>
 </head>
 <body>
 
-<!-- LOGIN -->
+<!-- LOGIN PAGE -->
 <div id="loginPage" class="login-container">
     <div class="login-card">
-        <h1>🎓 EduBot Power Dashboard</h1>
+        <h1>🎓 EduBot</h1>
         <p>Complete Learning Management System</p>
         <select id="role">
             <option value="teacher">👨‍🏫 Teacher</option>
@@ -210,7 +247,7 @@
         <input type="text" id="teacherId" placeholder="Teacher ID" value="9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89">
         <input type="password" id="password" placeholder="PIN / Password">
         <button onclick="login()">Sign In</button>
-        <div id="loginError" style="color:#ef4444; text-align:center; margin-top:15px;"></div>
+        <div id="loginError" class="error-msg"></div>
     </div>
 </div>
 
@@ -219,12 +256,12 @@
     <div class="container">
         <div class="header">
             <div>
-                <h1>🎓 EduBot Power Dashboard</h1>
+                <h1>🎓 EduBot Dashboard</h1>
                 <p>Complete Learning Management System</p>
             </div>
             <div>
-                <span id="roleBadge" class="badge badge-teacher"></span>
-                <button onclick="logout()" style="background:#ef4444; margin-left:10px;">Logout</button>
+                <span id="roleBadge" class="badge badge-primary"></span>
+                <button onclick="logout()" style="background:#ef4444; margin-left:10px;">🚪 Logout</button>
             </div>
         </div>
         
@@ -232,10 +269,9 @@
         
         <div class="nav">
             <button class="nav-btn active" onclick="showPage('subjects')">📚 Subjects</button>
-            <button class="nav-btn" onclick="showPage('grades')">🎓 Grades</button>
-            <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
+            <button class="nav-btn" onclick="showPage('grades')">🎓 Grade Levels</button>
+            <button class="nav-btn" onclick="showPage('notes')">📝 Daily Notes</button>
             <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
-            <button class="nav-btn" onclick="showPage('quizzes')">🎯 Quizzes</button>
             <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
             <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
             <button class="nav-btn" id="adminNav" style="display:none;" onclick="showPage('teachers')">👑 Teachers</button>
@@ -252,17 +288,12 @@
             </div>
         </div>
         
-        <!-- Grades Page -->
+        <!-- Grade Levels Page -->
         <div id="grades" class="page" style="display:none">
             <div class="card">
                 <div class="card-header">
                     <h2>🎓 Grade Levels</h2>
                     <button onclick="openGradeModal()">+ Add Grade Level</button>
-                </div>
-                <div class="filter-bar">
-                    <select id="gradeSubjectFilter" onchange="loadGrades()">
-                        <option value="">All Subjects</option>
-                    </select>
                 </div>
                 <div id="gradesTable"></div>
             </div>
@@ -295,17 +326,6 @@
                     <select id="questionGradeFilter" onchange="loadQuestions()"><option value="">All Grades</option></select>
                 </div>
                 <div id="questionsTable"></div>
-            </div>
-        </div>
-        
-        <!-- Quizzes Page -->
-        <div id="quizzes" class="page" style="display:none">
-            <div class="card">
-                <div class="card-header">
-                    <h2>🎯 Quizzes</h2>
-                    <button onclick="openQuizModal()">+ Create Quiz</button>
-                </div>
-                <div id="quizzesTable"></div>
             </div>
         </div>
         
@@ -346,19 +366,99 @@
 </div>
 
 <!-- MODALS -->
-<div id="subjectModal" class="modal"><div class="modal-content"><h3>Add Subject</h3><input type="text" id="subjectName" placeholder="Subject Name"><input type="text" id="subjectCode" placeholder="Subject Code"><input type="text" id="subjectIcon" placeholder="Icon (emoji)" value="📚"><input type="color" id="subjectColor" value="#6366f1"><textarea id="subjectDesc" placeholder="Description"></textarea><button onclick="saveSubject()">Save</button><button onclick="closeModal('subjectModal')">Cancel</button></div></div>
+<div id="subjectModal" class="modal">
+    <div class="modal-content">
+        <h3>📚 Add Subject</h3>
+        <input type="text" id="subjectName" placeholder="Subject Name *">
+        <input type="text" id="subjectCode" placeholder="Subject Code (e.g., MATH101)">
+        <input type="text" id="subjectIcon" placeholder="Icon (emoji)" value="📚">
+        <input type="color" id="subjectColor" value="#6366f1">
+        <textarea id="subjectDesc" placeholder="Description (optional)"></textarea>
+        <button onclick="saveSubject()">Save Subject</button>
+        <button onclick="closeModal('subjectModal')">Cancel</button>
+    </div>
+</div>
 
-<div id="gradeModal" class="modal"><div class="modal-content"><h3>Add Grade Level</h3><select id="gradeSubjectId"></select><input type="text" id="gradeName" placeholder="Grade Name (e.g., Grade 9, Freshman)"><select id="gradeType"><option value="secondary">Secondary School</option><option value="college">College/University</option></select><input type="number" id="gradeYear" placeholder="Year (for college: 1,2,3,4)"><input type="number" id="gradeOrder" placeholder="Order Index"><button onclick="saveGrade()">Save</button><button onclick="closeModal('gradeModal')">Cancel</button></div></div>
+<div id="gradeModal" class="modal">
+    <div class="modal-content">
+        <h3>🎓 Add Grade Level</h3>
+        <select id="gradeSubjectId"></select>
+        <input type="text" id="gradeName" placeholder="Grade Name (e.g., Grade 9, Freshman Year 1)">
+        <select id="gradeType">
+            <option value="primary">📚 Primary School (Grades 1-6)</option>
+            <option value="secondary">📖 Secondary School (Grades 7-12)</option>
+            <option value="tvet">🔧 TVET / Vocational</option>
+            <option value="degree">🎓 College / Degree</option>
+            <option value="postgraduate">👨‍🎓 Postgraduate</option>
+        </select>
+        <input type="number" id="gradeOrder" placeholder="Display Order (1-100)">
+        <button onclick="saveGrade()">Save Grade Level</button>
+        <button onclick="closeModal('gradeModal')">Cancel</button>
+    </div>
+</div>
 
-<div id="noteModal" class="modal"><div class="modal-content"><h3>Add Note</h3><select id="noteSubjectId"></select><select id="noteGradeId"></select><input type="text" id="noteTitle" placeholder="Title"><input type="text" id="noteTopic" placeholder="Topic"><input type="date" id="noteDate"><textarea id="noteContent" rows="5" placeholder="Content..."></textarea><button onclick="saveNote()">Save</button><button onclick="closeModal('noteModal')">Cancel</button></div></div>
+<div id="noteModal" class="modal">
+    <div class="modal-content">
+        <h3>📝 Add Daily Note</h3>
+        <select id="noteSubjectId"></select>
+        <select id="noteGradeId"></select>
+        <input type="text" id="noteTitle" placeholder="Title *">
+        <input type="text" id="noteTopic" placeholder="Topic (e.g., Algebra Basics)">
+        <input type="date" id="noteDate">
+        <textarea id="noteContent" rows="6" placeholder="Content..."></textarea>
+        <button onclick="saveNote()">Save Note</button>
+        <button onclick="closeModal('noteModal')">Cancel</button>
+    </div>
+</div>
 
-<div id="questionModal" class="modal"><div class="modal-content"><h3>Add Question</h3><select id="questionSubjectId"></select><select id="questionGradeId"></select><textarea id="questionText" rows="3" placeholder="Question..."></textarea><textarea id="questionAnswer" rows="3" placeholder="Answer..."></textarea><textarea id="questionExplanation" rows="2" placeholder="Explanation (optional)"></textarea><select id="questionDifficulty"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select><input type="text" id="questionTopic" placeholder="Topic"><button onclick="saveQuestion()">Save</button><button onclick="closeModal('questionModal')">Cancel</button></div></div>
+<div id="questionModal" class="modal">
+    <div class="modal-content">
+        <h3>❓ Add Question</h3>
+        <select id="questionSubjectId"></select>
+        <select id="questionGradeId"></select>
+        <textarea id="questionText" rows="3" placeholder="Question *"></textarea>
+        <textarea id="questionAnswer" rows="3" placeholder="Answer *"></textarea>
+        <textarea id="questionExplanation" rows="2" placeholder="Explanation (optional)"></textarea>
+        <select id="questionDifficulty">
+            <option value="easy">🟢 Easy</option>
+            <option value="medium" selected>🟡 Medium</option>
+            <option value="hard">🔴 Hard</option>
+        </select>
+        <input type="text" id="questionTopic" placeholder="Topic">
+        <button onclick="saveQuestion()">Save Question</button>
+        <button onclick="closeModal('questionModal')">Cancel</button>
+    </div>
+</div>
 
-<div id="quizModal" class="modal"><div class="modal-content"><h3>Create Quiz</h3><select id="quizSubjectId"></select><select id="quizGradeId"></select><input type="text" id="quizTitle" placeholder="Quiz Title"><textarea id="quizDesc" placeholder="Description"></textarea><input type="number" id="quizTimeLimit" placeholder="Time Limit (minutes)"><input type="number" id="quizPassingScore" placeholder="Passing Score %" value="70"><button onclick="saveQuiz()">Create Quiz</button><button onclick="closeModal('quizModal')">Cancel</button></div></div>
+<div id="bookModal" class="modal">
+    <div class="modal-content">
+        <h3>📚 Add Book</h3>
+        <select id="bookSubjectId"></select>
+        <select id="bookGradeId"></select>
+        <input type="text" id="bookTitle" placeholder="Title *">
+        <input type="text" id="bookAuthor" placeholder="Author">
+        <input type="text" id="bookPublisher" placeholder="Publisher">
+        <input type="url" id="bookFileUrl" placeholder="File URL (Google Drive link)">
+        <textarea id="bookDesc" rows="3" placeholder="Description"></textarea>
+        <button onclick="saveBook()">Save Book</button>
+        <button onclick="closeModal('bookModal')">Cancel</button>
+    </div>
+</div>
 
-<div id="bookModal" class="modal"><div class="modal-content"><h3>Add Book</h3><select id="bookSubjectId"></select><select id="bookGradeId"></select><input type="text" id="bookTitle" placeholder="Title"><input type="text" id="bookAuthor" placeholder="Author"><input type="text" id="bookPublisher" placeholder="Publisher"><input type="url" id="bookFileUrl" placeholder="File URL"><textarea id="bookDesc" placeholder="Description"></textarea><button onclick="saveBook()">Save</button><button onclick="closeModal('bookModal')">Cancel</button></div></div>
-
-<div id="teacherModal" class="modal"><div class="modal-content"><h3>Add Teacher</h3><input type="text" id="teacherName" placeholder="Name"><input type="email" id="teacherEmail" placeholder="Email"><input type="password" id="teacherPassword" placeholder="Password"><select id="teacherRole"><option value="teacher">Teacher</option><option value="super_admin">Super Admin</option></select><button onclick="createTeacher()">Create</button><button onclick="closeModal('teacherModal')">Cancel</button></div></div>
+<div id="teacherModal" class="modal">
+    <div class="modal-content">
+        <h3>👑 Add Teacher</h3>
+        <input type="text" id="teacherName" placeholder="Full Name *">
+        <input type="email" id="teacherEmail" placeholder="Email *">
+        <input type="password" id="teacherPassword" placeholder="Password *">
+        <select id="teacherRole">
+            <option value="teacher">👨‍🏫 Teacher</option>
+            <option value="super_admin">👑 Super Admin</option>
+        </select>
+        <button onclick="createTeacher()">Create Teacher</button>
+        <button onclick="closeModal('teacherModal')">Cancel</button>
+    </div>
+</div>
 
 <div id="toast" class="toast"></div>
 
@@ -371,9 +471,10 @@ const ADMIN_PASS = "admin123";
 
 let isSuperAdmin = false;
 
-function showToast(msg) {
+function showToast(msg, type = 'success') {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
+    toast.style.borderLeftColor = type === 'error' ? '#ef4444' : '#22c55e';
     toast.style.display = 'block';
     setTimeout(() => toast.style.display = 'none', 3000);
 }
@@ -381,7 +482,7 @@ function showToast(msg) {
 async function api(table, options = {}) {
     let url = `${SUPABASE_URL}/rest/v1/${table}`;
     if (options.filter) url += `?${options.filter.column}=eq.${options.filter.value}`;
-    if (options.order) url += `${url.includes('?') ? '&' : '?'}order=${options.order.column}.desc`;
+    if (options.order) url += `${url.includes('?') ? '&' : '?'}order=${options.order.column}.${options.order.direction || 'desc'}`;
     
     try {
         const res = await fetch(url, {
@@ -394,6 +495,7 @@ async function api(table, options = {}) {
         if (!text || text.trim() === '') return { success: true, data: [] };
         return { success: true, data: JSON.parse(text) };
     } catch(e) {
+        console.error('API Error:', e);
         return { success: false, error: e.message };
     }
 }
@@ -401,30 +503,33 @@ async function api(table, options = {}) {
 function login() {
     const role = document.getElementById('role').value;
     const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('loginError');
     
     if (role === 'teacher') {
         if (password === TEACHER_PIN) {
             isSuperAdmin = false;
             document.getElementById('roleBadge').innerHTML = '👨‍🏫 Teacher';
-            document.getElementById('roleBadge').className = 'badge badge-teacher';
+            document.getElementById('roleBadge').className = 'badge badge-primary';
             document.getElementById('adminNav').style.display = 'none';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
             loadAllData();
+            errorDiv.textContent = '';
         } else {
-            document.getElementById('loginError').textContent = 'Invalid PIN';
+            errorDiv.textContent = 'Invalid PIN';
         }
     } else {
         if (password === ADMIN_PASS) {
             isSuperAdmin = true;
             document.getElementById('roleBadge').innerHTML = '👑 Super Admin';
-            document.getElementById('roleBadge').className = 'badge badge-super';
+            document.getElementById('roleBadge').className = 'badge badge-primary';
             document.getElementById('adminNav').style.display = 'block';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
             loadAllData();
+            errorDiv.textContent = '';
         } else {
-            document.getElementById('loginError').textContent = 'Invalid Password';
+            errorDiv.textContent = 'Invalid Admin Password';
         }
     }
 }
@@ -441,7 +546,6 @@ async function loadAllData() {
     await loadGrades();
     await loadNotes();
     await loadQuestions();
-    await loadQuizzes();
     await loadBooks();
     await loadStudents();
     if (isSuperAdmin) await loadTeachers();
@@ -456,11 +560,11 @@ async function loadStats() {
         api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } })
     ]);
     document.getElementById('stats').innerHTML = `
-        <div class="stat-card"><h3>Subjects</h3><div class="value">${subjects.data?.length || 0}</div></div>
-        <div class="stat-card"><h3>Grade Levels</h3><div class="value">${grades.data?.length || 0}</div></div>
-        <div class="stat-card"><h3>Notes</h3><div class="value">${notes.data?.length || 0}</div></div>
-        <div class="stat-card"><h3>Questions</h3><div class="value">${questions.data?.length || 0}</div></div>
-        <div class="stat-card"><h3>Students</h3><div class="value">${students.data?.length || 0}</div></div>
+        <div class="stat-card"><div class="value">${subjects.data?.length || 0}</div><div class="label">📚 Subjects</div></div>
+        <div class="stat-card"><div class="value">${grades.data?.length || 0}</div><div class="label">🎓 Grade Levels</div></div>
+        <div class="stat-card"><div class="value">${notes.data?.length || 0}</div><div class="label">📝 Notes</div></div>
+        <div class="stat-card"><div class="value">${questions.data?.length || 0}</div><div class="label">❓ Questions</div></div>
+        <div class="stat-card"><div class="value">${students.data?.length || 0}</div><div class="label">👨‍🎓 Students</div></div>
     `;
 }
 
@@ -480,38 +584,44 @@ async function loadSubjects() {
             `).join('')}</tbody>
         `;
     }
-    // Update filter dropdowns
+    // Update dropdowns
     const options = `<option value="">All Subjects</option>${(result.data || []).map(s => `<option value="${s.id}">${s.icon || '📚'} ${escapeHtml(s.name)}</option>`).join('')}`;
-    document.getElementById('gradeSubjectFilter').innerHTML = options;
     document.getElementById('noteSubjectFilter').innerHTML = options;
     document.getElementById('questionSubjectFilter').innerHTML = options;
     document.getElementById('bookSubjectFilter').innerHTML = options;
     document.getElementById('gradeSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
     document.getElementById('noteSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
     document.getElementById('questionSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
-    document.getElementById('quizSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
     document.getElementById('bookSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
 }
 
 async function loadGrades() {
-    const subjectFilter = document.getElementById('gradeSubjectFilter').value;
-    let filter = { column: 'teacher_id', value: TEACHER_ID };
-    let result;
-    if (subjectFilter) {
-        result = await api(`grade_levels?teacher_id=eq.${TEACHER_ID}&subject_id=eq.${subjectFilter}&order=order_index.asc`);
-    } else {
-        result = await api('grade_levels', { filter: { column: 'teacher_id', value: TEACHER_ID }, order: { column: 'order_index' } });
-    }
-    const data = result.data || result;
-    if (data?.length) {
+    const result = await api('grade_levels', { filter: { column: 'teacher_id', value: TEACHER_ID }, order: { column: 'order_index', direction: 'asc' } });
+    if (result.data?.length) {
+        const getTypeBadge = (type) => {
+            const badges = { 'primary': 'badge-primary', 'secondary': 'badge-primary', 'tvet': 'badge-tvet', 'degree': 'badge-degree', 'postgraduate': 'badge-post' };
+            return `<span class="badge ${badges[type] || 'badge-primary'}">${type}</span>`;
+        };
         document.getElementById('gradesTable').innerHTML = `
-            <thead><th>Subject</th><th>Name</th><th>Type</th><th>Year</th><th>Actions</th></thead>
-            <tbody>${data.map(async g => {
-                const subj = await api(`subjects?id=eq.${g.subject_id}&select=name`);
-                return `<tr><td>${subj.data?.[0]?.name || '-'}</td><td>${escapeHtml(g.name)}</td><td>${g.level_type}</td><td>${g.year || '-'}</td><td><button class="btn-small btn-danger" onclick="deleteGrade('${g.id}')">Delete</button></td></tr>`;
-            }).join('')}</tbody>
+            <thead><th>Order</th><th>Name</th><th>Type</th><th>Actions</th></thead>
+            <tbody>${result.data.map(g => `
+                <tr>
+                    <td>${g.order_index || '-'}</td>
+                    <td><strong>${escapeHtml(g.name)}</strong></td>
+                    <td>${getTypeBadge(g.level_type)}</td>
+                    <td><button class="btn-small btn-danger" onclick="deleteGrade('${g.id}')">Delete</button></td>
+                </tr>
+            `).join('')}</tbody>
         `;
     }
+    // Update grade dropdowns
+    const gradeOptions = `<option value="">All Grades</option>${(result.data || []).map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('')}`;
+    document.getElementById('noteGradeFilter').innerHTML = gradeOptions;
+    document.getElementById('questionGradeFilter').innerHTML = gradeOptions;
+    document.getElementById('bookGradeFilter').innerHTML = gradeOptions;
+    document.getElementById('noteGradeId').innerHTML = gradeOptions.replace('All Grades', 'Select Grade');
+    document.getElementById('questionGradeId').innerHTML = gradeOptions.replace('All Grades', 'Select Grade');
+    document.getElementById('bookGradeId').innerHTML = gradeOptions.replace('All Grades', 'Select Grade');
 }
 
 async function loadNotes() {
@@ -526,13 +636,17 @@ async function loadNotes() {
         document.getElementById('notesTable').innerHTML = `
             <thead><th>Date</th><th>Title</th><th>Subject</th><th>Grade</th><th>Actions</th></thead>
             <tbody>${result.data.map(n => `
-                <tr><td>${n.note_date}</td><td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
-                <td>${n.subject_id || '-'}</td><td>${n.grade_level_id || '-'}</td>
-                <td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td></tr>
+                <tr>
+                    <td>${n.note_date}</td>
+                    <td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td>
+                    <td>${n.subject_id || '-'}</td>
+                    <td>${n.grade_level_id || '-'}</td>
+                    <td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td>
+                </tr>
             `).join('')}</tbody>
         `;
     } else {
-        document.getElementById('notesTable').innerHTML = '<div class="empty">📭 No notes yet</div>';
+        document.getElementById('notesTable').innerHTML = '<div class="empty">📭 No notes yet. Add your first note!</div>';
     }
 }
 
@@ -547,27 +661,16 @@ async function loadQuestions() {
         document.getElementById('questionsTable').innerHTML = `
             <thead><th>Question</th><th>Difficulty</th><th>Topic</th><th>Actions</th></thead>
             <tbody>${result.data.map(q => `
-                <tr><td>${escapeHtml(q.question_text.substring(0, 80))}...</td>
-                <td><span class="badge ${q.difficulty === 'easy' ? 'badge-success' : q.difficulty === 'hard' ? 'badge-danger' : 'badge-warning'}">${q.difficulty || 'medium'}</span></td>
-                <td>${q.topic || '-'}</td>
-                <td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td></tr>
+                <tr>
+                    <td>${escapeHtml(q.question_text.substring(0, 80))}...</td>
+                    <td><span class="badge ${q.difficulty === 'easy' ? 'badge-primary' : q.difficulty === 'hard' ? 'badge-tvet' : 'badge-primary'}">${q.difficulty || 'medium'}</span></td>
+                    <td>${q.topic || '-'}</td>
+                    <td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td>
+                </tr>
             `).join('')}</tbody>
         `;
-    }
-}
-
-async function loadQuizzes() {
-    const result = await api('quizzes', { filter: { column: 'teacher_id', value: TEACHER_ID } });
-    if (result.data?.length) {
-        document.getElementById('quizzesTable').innerHTML = `
-            <thead><th>Title</th><th>Subject</th><th>Grade</th><th>Time Limit</th><th>Actions</th></thead>
-            <tbody>${result.data.map(q => `
-                <tr><td><strong>${escapeHtml(q.title)}</strong></td>
-                <td>${q.subject_id || '-'}</td><td>${q.grade_level_id || '-'}</td>
-                <td>${q.time_limit || '-'} min</td>
-                <td><button class="btn-small btn-danger" onclick="deleteQuiz('${q.id}')">Delete</button></td></tr>
-            `).join('')}</tbody>
-        `;
+    } else {
+        document.getElementById('questionsTable').innerHTML = '<div class="empty">❓ No questions yet. Add your first question!</div>';
     }
 }
 
@@ -582,11 +685,17 @@ async function loadBooks() {
         document.getElementById('booksTable').innerHTML = `
             <thead><th>Title</th><th>Author</th><th>Subject</th><th>Grade</th><th>Actions</th></thead>
             <tbody>${result.data.map(b => `
-                <tr><td><strong>${escapeHtml(b.title)}</strong></td>
-                <td>${b.author || '-'}</td><td>${b.subject_id || '-'}</td><td>${b.grade_level_id || '-'}</td>
-                <td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td></tr>
+                <tr>
+                    <td><strong>${escapeHtml(b.title)}</strong></td>
+                    <td>${b.author || '-'}</td>
+                    <td>${b.subject_id || '-'}</td>
+                    <td>${b.grade_level_id || '-'}</td>
+                    <td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td>
+                </tr>
             `).join('')}</tbody>
         `;
+    } else {
+        document.getElementById('booksTable').innerHTML = '<div class="empty">📚 No books yet. Add your first book!</div>';
     }
 }
 
@@ -596,13 +705,18 @@ async function loadStudents() {
         document.getElementById('studentsTable').innerHTML = `
             <thead><th>Name</th><th>Username</th><th>Telegram ID</th><th>Subject</th><th>Grade</th><th>Joined</th></thead>
             <tbody>${result.data.map(s => `
-                <tr><td>${escapeHtml(s.first_name || 'Anonymous')}</td>
-                <td>@${escapeHtml(s.username || '-')}</td>
-                <td>${s.telegram_id}</td>
-                <td>${s.subject_id || '-'}</td><td>${s.grade_level_id || '-'}</td>
-                <td>${new Date(s.enrolled_at).toLocaleDateString()}</td></tr>
+                <tr>
+                    <td>${escapeHtml(s.first_name || 'Anonymous')}</td>
+                    <td>@${escapeHtml(s.username || '-')}</td>
+                    <td>${s.telegram_id}</td>
+                    <td>${s.subject_id || '-'}</td>
+                    <td>${s.grade_level_id || '-'}</td>
+                    <td>${new Date(s.enrolled_at).toLocaleDateString()}</td>
+                </tr>
             `).join('')}</tbody>
         `;
+    } else {
+        document.getElementById('studentsTable').innerHTML = '<div class="empty">👨‍🎓 No students yet</div>';
     }
 }
 
@@ -613,11 +727,13 @@ async function loadTeachers() {
         document.getElementById('teachersTable').innerHTML = `
             <thead><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></thead>
             <tbody>${result.data.map(t => `
-                <tr><td><strong>${escapeHtml(t.name)}</strong></td>
-                <td>${escapeHtml(t.email)}</td>
-                <td><span class="badge ${t.role === 'super_admin' ? 'badge-super' : 'badge-teacher'}">${t.role || 'teacher'}</span></td>
-                <td><span style="color:${t.is_active ? '#22c55e' : '#ef4444'}">${t.is_active ? 'Active' : 'Blocked'}</span></td>
-                <td><button class="btn-small btn-danger" onclick="deleteTeacher('${t.id}')">Delete</button></td></tr>
+                <tr>
+                    <td><strong>${escapeHtml(t.name)}</strong></td>
+                    <td>${escapeHtml(t.email)}</td>
+                    <td><span class="badge ${t.role === 'super_admin' ? 'badge-degree' : 'badge-primary'}">${t.role || 'teacher'}</span></td>
+                    <td><span style="color:${t.is_active ? '#22c55e' : '#ef4444'}">${t.is_active ? 'Active' : 'Blocked'}</span></td>
+                    <td><button class="btn-small btn-danger" onclick="deleteTeacher('${t.id}')">Delete</button></td>
+                </tr>
             `).join('')}</tbody>
         `;
     }
@@ -626,7 +742,7 @@ async function loadTeachers() {
 // SAVE FUNCTIONS
 async function saveSubject() {
     const data = { teacher_id: TEACHER_ID, name: document.getElementById('subjectName').value, code: document.getElementById('subjectCode').value, icon: document.getElementById('subjectIcon').value, color: document.getElementById('subjectColor').value, description: document.getElementById('subjectDesc').value };
-    if (!data.name) { showToast('Name required'); return; }
+    if (!data.name) { showToast('Subject name required', 'error'); return; }
     await api('subjects', { method: 'POST', data });
     closeModal('subjectModal');
     loadAllData();
@@ -634,17 +750,17 @@ async function saveSubject() {
 }
 
 async function saveGrade() {
-    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('gradeSubjectId').value, name: document.getElementById('gradeName').value, level_type: document.getElementById('gradeType').value, year: document.getElementById('gradeYear').value || null, order_index: document.getElementById('gradeOrder').value || 0 };
-    if (!data.subject_id || !data.name) { showToast('Subject and grade name required'); return; }
+    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('gradeSubjectId').value, name: document.getElementById('gradeName').value, level_type: document.getElementById('gradeType').value, order_index: parseInt(document.getElementById('gradeOrder').value) || 0 };
+    if (!data.subject_id || !data.name) { showToast('Subject and grade name required', 'error'); return; }
     await api('grade_levels', { method: 'POST', data });
     closeModal('gradeModal');
     loadAllData();
-    showToast('Grade added!');
+    showToast('Grade level added!');
 }
 
 async function saveNote() {
-    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('noteSubjectId').value, grade_level_id: document.getElementById('noteGradeId').value, title: document.getElementById('noteTitle').value, topic: document.getElementById('noteTopic').value, content: document.getElementById('noteContent').value, note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0] };
-    if (!data.title || !data.content) { showToast('Title and content required'); return; }
+    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('noteSubjectId').value, grade_level_id: document.getElementById('noteGradeId').value, title: document.getElementById('noteTitle').value, topic: document.getElementById('noteTopic').value, content: document.getElementById('noteContent').value, note_date: document.getElementById('noteDate').value || new Date().toISOString().split('T')[0], is_published: true };
+    if (!data.title || !data.content) { showToast('Title and content required', 'error'); return; }
     await api('daily_notes', { method: 'POST', data });
     closeModal('noteModal');
     loadAllData();
@@ -652,26 +768,17 @@ async function saveNote() {
 }
 
 async function saveQuestion() {
-    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('questionSubjectId').value, grade_level_id: document.getElementById('questionGradeId').value, question_text: document.getElementById('questionText').value, answer: document.getElementById('questionAnswer').value, explanation: document.getElementById('questionExplanation').value, difficulty: document.getElementById('questionDifficulty').value, topic: document.getElementById('questionTopic').value };
-    if (!data.question_text || !data.answer) { showToast('Question and answer required'); return; }
+    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('questionSubjectId').value, grade_level_id: document.getElementById('questionGradeId').value, question_text: document.getElementById('questionText').value, answer: document.getElementById('questionAnswer').value, explanation: document.getElementById('questionExplanation').value, difficulty: document.getElementById('questionDifficulty').value, topic: document.getElementById('questionTopic').value, is_active: true };
+    if (!data.question_text || !data.answer) { showToast('Question and answer required', 'error'); return; }
     await api('questions', { method: 'POST', data });
     closeModal('questionModal');
     loadAllData();
     showToast('Question added!');
 }
 
-async function saveQuiz() {
-    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('quizSubjectId').value, grade_level_id: document.getElementById('quizGradeId').value, title: document.getElementById('quizTitle').value, description: document.getElementById('quizDesc').value, time_limit: document.getElementById('quizTimeLimit').value || null, passing_score: document.getElementById('quizPassingScore').value || 70 };
-    if (!data.title) { showToast('Title required'); return; }
-    await api('quizzes', { method: 'POST', data });
-    closeModal('quizModal');
-    loadAllData();
-    showToast('Quiz created!');
-}
-
 async function saveBook() {
-    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('bookSubjectId').value, grade_level_id: document.getElementById('bookGradeId').value, title: document.getElementById('bookTitle').value, author: document.getElementById('bookAuthor').value, publisher: document.getElementById('bookPublisher').value, file_url: document.getElementById('bookFileUrl').value, description: document.getElementById('bookDesc').value };
-    if (!data.title) { showToast('Title required'); return; }
+    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('bookSubjectId').value, grade_level_id: document.getElementById('bookGradeId').value, title: document.getElementById('bookTitle').value, author: document.getElementById('bookAuthor').value, publisher: document.getElementById('bookPublisher').value, file_url: document.getElementById('bookFileUrl').value, description: document.getElementById('bookDesc').value, is_active: true };
+    if (!data.title) { showToast('Title required', 'error'); return; }
     await api('books', { method: 'POST', data });
     closeModal('bookModal');
     loadAllData();
@@ -691,7 +798,6 @@ async function deleteSubject(id) { if (confirm('Delete subject? All related data
 async function deleteGrade(id) { if (confirm('Delete grade?')) { await api(`grade_levels?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
 async function deleteNote(id) { if (confirm('Delete note?')) { await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
 async function deleteQuestion(id) { if (confirm('Delete question?')) { await api(`questions?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
-async function deleteQuiz(id) { if (confirm('Delete quiz?')) { await api(`quizzes?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
 async function deleteBook(id) { if (confirm('Delete book?')) { await api(`books?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
 async function deleteTeacher(id) { if (confirm('Delete teacher?')) { await api(`teachers?id=eq.${id}`, { method: 'DELETE' }); loadTeachers(); showToast('Deleted'); } }
 
@@ -706,7 +812,6 @@ function openSubjectModal() { document.getElementById('subjectModal').style.disp
 function openGradeModal() { document.getElementById('gradeModal').style.display = 'flex'; }
 function openNoteModal() { document.getElementById('noteDate').value = new Date().toISOString().split('T')[0]; document.getElementById('noteModal').style.display = 'flex'; }
 function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
-function openQuizModal() { document.getElementById('quizModal').style.display = 'flex'; }
 function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
 function openTeacherModal() { document.getElementById('teacherModal').style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
