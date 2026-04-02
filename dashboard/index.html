@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduBot - Complete Learning Management System</title>
+    <title>EduBot - AI Powered Learning Management System</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -162,6 +162,8 @@
         .btn-danger:hover { background: #dc2626; }
         .btn-success { background: #22c55e; }
         .btn-success:hover { background: #16a34a; }
+        .btn-ai { background: #8b5cf6; }
+        .btn-ai:hover { background: #7c3aed; }
         
         input, textarea, select {
             width: 100%;
@@ -191,7 +193,7 @@
             background: #1e293b;
             padding: 30px;
             border-radius: 20px;
-            max-width: 600px;
+            max-width: 700px;
             width: 90%;
             max-height: 85vh;
             overflow-y: auto;
@@ -206,10 +208,23 @@
             font-weight: 500;
         }
         .badge-primary { background: #6366f120; color: #6366f1; }
-        .badge-secondary { background: #22c55e20; color: #22c55e; }
-        .badge-tvet { background: #f59e0b20; color: #f59e0b; }
-        .badge-degree { background: #8b5cf620; color: #8b5cf6; }
-        .badge-post { background: #ec489920; color: #ec4899; }
+        .badge-ai { background: #8b5cf620; color: #8b5cf6; }
+        
+        .ai-preview {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .ai-preview-item {
+            padding: 10px;
+            border-bottom: 1px solid #334155;
+            cursor: pointer;
+        }
+        .ai-preview-item:hover { background: #1e293b; }
+        .ai-preview-item.selected { background: #6366f120; border-left: 3px solid #6366f1; }
         
         .empty { text-align: center; padding: 40px; color: #64748b; }
         .toast {
@@ -224,12 +239,25 @@
             z-index: 2000;
         }
         
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #334155;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #22c55e;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
         @media (max-width: 768px) {
             .stats { grid-template-columns: repeat(2, 1fr); }
             th, td { font-size: 0.7rem; padding: 8px; }
             .card-header { flex-direction: column; align-items: stretch; }
-            .filter-bar { flex-direction: column; }
-            .filter-bar select { width: 100%; }
         }
     </style>
 </head>
@@ -239,7 +267,7 @@
 <div id="loginPage" class="login-container">
     <div class="login-card">
         <h1>🎓 EduBot</h1>
-        <p>Complete Learning Management System</p>
+        <p>AI Powered Learning Management System</p>
         <select id="role">
             <option value="teacher">👨‍🏫 Teacher</option>
             <option value="admin">👑 Super Admin</option>
@@ -257,7 +285,7 @@
         <div class="header">
             <div>
                 <h1>🎓 EduBot Dashboard</h1>
-                <p>Complete Learning Management System</p>
+                <p>AI Powered Learning Management System</p>
             </div>
             <div>
                 <span id="roleBadge" class="badge badge-primary"></span>
@@ -270,7 +298,7 @@
         <div class="nav">
             <button class="nav-btn active" onclick="showPage('subjects')">📚 Subjects</button>
             <button class="nav-btn" onclick="showPage('grades')">🎓 Grade Levels</button>
-            <button class="nav-btn" onclick="showPage('notes')">📝 Daily Notes</button>
+            <button class="nav-btn" onclick="showPage('notes')">📝 Notes</button>
             <button class="nav-btn" onclick="showPage('questions')">❓ Questions</button>
             <button class="nav-btn" onclick="showPage('books')">📚 Books</button>
             <button class="nav-btn" onclick="showPage('students')">👨‍🎓 Students</button>
@@ -305,6 +333,7 @@
                 <div class="card-header">
                     <h2>📝 Daily Notes</h2>
                     <button onclick="openNoteModal()">+ Add Note</button>
+                    <button class="btn-ai" onclick="openAIGenerateNoteModal()">🤖 AI Generate Note</button>
                 </div>
                 <div class="filter-bar">
                     <select id="noteSubjectFilter" onchange="loadNotes()"><option value="">All Subjects</option></select>
@@ -319,7 +348,9 @@
             <div class="card">
                 <div class="card-header">
                     <h2>❓ Questions Bank</h2>
-                    <button onclick="openQuestionModal()">+ Add Question</button>
+                    <button onclick="openQuestionModal()">+ Add Single Question</button>
+                    <button class="btn-ai" onclick="openAIGenerateModal()">🤖 AI Generate Questions</button>
+                    <button class="btn-success" onclick="openBulkImportModal()">📄 Bulk Import CSV</button>
                 </div>
                 <div class="filter-bar">
                     <select id="questionSubjectFilter" onchange="loadQuestions()"><option value="">All Subjects</option></select>
@@ -352,7 +383,7 @@
             </div>
         </div>
         
-        <!-- Teachers Page (Super Admin) -->
+        <!-- Teachers Page -->
         <div id="teachers" class="page" style="display:none">
             <div class="card">
                 <div class="card-header">
@@ -366,110 +397,82 @@
 </div>
 
 <!-- MODALS -->
-<div id="subjectModal" class="modal">
+<div id="subjectModal" class="modal"><div class="modal-content"><h3>📚 Add Subject</h3><input type="text" id="subjectName" placeholder="Subject Name *"><input type="text" id="subjectCode" placeholder="Subject Code"><input type="text" id="subjectIcon" placeholder="Icon (emoji)" value="📚"><input type="color" id="subjectColor" value="#6366f1"><textarea id="subjectDesc" placeholder="Description"></textarea><button onclick="saveSubject()">Save</button><button onclick="closeModal('subjectModal')">Cancel</button></div></div>
+
+<div id="gradeModal" class="modal"><div class="modal-content"><h3>🎓 Add Grade Level</h3><select id="gradeSubjectId"></select><input type="text" id="gradeName" placeholder="Grade Name"><select id="gradeType"><option value="primary">📚 Primary School</option><option value="secondary">📖 Secondary School</option><option value="tvet">🔧 TVET / Vocational</option><option value="degree">🎓 College / Degree</option><option value="postgraduate">👨‍🎓 Postgraduate</option></select><input type="number" id="gradeOrder" placeholder="Display Order"><button onclick="saveGrade()">Save</button><button onclick="closeModal('gradeModal')">Cancel</button></div></div>
+
+<!-- AI Generate Note Modal -->
+<div id="aiNoteModal" class="modal">
     <div class="modal-content">
-        <h3>📚 Add Subject</h3>
-        <input type="text" id="subjectName" placeholder="Subject Name *">
-        <input type="text" id="subjectCode" placeholder="Subject Code (e.g., MATH101)">
-        <input type="text" id="subjectIcon" placeholder="Icon (emoji)" value="📚">
-        <input type="color" id="subjectColor" value="#6366f1">
-        <textarea id="subjectDesc" placeholder="Description (optional)"></textarea>
-        <button onclick="saveSubject()">Save Subject</button>
-        <button onclick="closeModal('subjectModal')">Cancel</button>
+        <h3>🤖 AI Generate Daily Note</h3>
+        <select id="aiNoteSubject"></select>
+        <select id="aiNoteGrade"></select>
+        <input type="text" id="aiNoteTopic" placeholder="Topic (e.g., Photosynthesis, Algebra)">
+        <textarea id="aiNoteInstruction" rows="3" placeholder="Additional instructions (e.g., Keep it simple, Add examples, Include a fun fact)"></textarea>
+        <button class="btn-ai" onclick="generateAINote()">✨ Generate Note</button>
+        <div id="aiNotePreview" class="ai-preview" style="display:none;"></div>
+        <button id="saveAiNoteBtn" style="display:none;" onclick="saveAINote()">💾 Save to Database</button>
+        <button onclick="closeModal('aiNoteModal')">Cancel</button>
     </div>
 </div>
 
-<div id="gradeModal" class="modal">
+<!-- AI Generate Questions Modal -->
+<div id="aiModal" class="modal">
     <div class="modal-content">
-        <h3>🎓 Add Grade Level</h3>
-        <select id="gradeSubjectId"></select>
-        <input type="text" id="gradeName" placeholder="Grade Name (e.g., Grade 9, Freshman Year 1)">
-        <select id="gradeType">
-            <option value="primary">📚 Primary School (Grades 1-6)</option>
-            <option value="secondary">📖 Secondary School (Grades 7-12)</option>
-            <option value="tvet">🔧 TVET / Vocational</option>
-            <option value="degree">🎓 College / Degree</option>
-            <option value="postgraduate">👨‍🎓 Postgraduate</option>
-        </select>
-        <input type="number" id="gradeOrder" placeholder="Display Order (1-100)">
-        <button onclick="saveGrade()">Save Grade Level</button>
-        <button onclick="closeModal('gradeModal')">Cancel</button>
-    </div>
-</div>
-
-<div id="noteModal" class="modal">
-    <div class="modal-content">
-        <h3>📝 Add Daily Note</h3>
-        <select id="noteSubjectId"></select>
-        <select id="noteGradeId"></select>
-        <input type="text" id="noteTitle" placeholder="Title *">
-        <input type="text" id="noteTopic" placeholder="Topic (e.g., Algebra Basics)">
-        <input type="date" id="noteDate">
-        <textarea id="noteContent" rows="6" placeholder="Content..."></textarea>
-        <button onclick="saveNote()">Save Note</button>
-        <button onclick="closeModal('noteModal')">Cancel</button>
-    </div>
-</div>
-
-<div id="questionModal" class="modal">
-    <div class="modal-content">
-        <h3>❓ Add Question</h3>
-        <select id="questionSubjectId"></select>
-        <select id="questionGradeId"></select>
-        <textarea id="questionText" rows="3" placeholder="Question *"></textarea>
-        <textarea id="questionAnswer" rows="3" placeholder="Answer *"></textarea>
-        <textarea id="questionExplanation" rows="2" placeholder="Explanation (optional)"></textarea>
-        <select id="questionDifficulty">
+        <h3>🤖 AI Generate Questions</h3>
+        <select id="aiSubject"></select>
+        <select id="aiGrade"></select>
+        <input type="text" id="aiTopic" placeholder="Topic (e.g., Algebra, Biology, History)">
+        <select id="aiDifficulty">
             <option value="easy">🟢 Easy</option>
-            <option value="medium" selected>🟡 Medium</option>
+            <option value="medium">🟡 Medium</option>
             <option value="hard">🔴 Hard</option>
         </select>
-        <input type="text" id="questionTopic" placeholder="Topic">
-        <button onclick="saveQuestion()">Save Question</button>
-        <button onclick="closeModal('questionModal')">Cancel</button>
+        <input type="number" id="aiCount" placeholder="Number of questions (1-20)" value="5" min="1" max="20">
+        <textarea id="aiInstruction" rows="3" placeholder="Additional instructions (e.g., Multiple choice, Include explanations)"></textarea>
+        <button class="btn-ai" onclick="generateAIQuestions()">✨ Generate Questions</button>
+        <div id="aiPreview" class="ai-preview" style="display:none;"></div>
+        <button id="saveAiBtn" style="display:none;" onclick="saveAIQuestions()">💾 Save Selected (0)</button>
+        <button onclick="closeModal('aiModal')">Cancel</button>
     </div>
 </div>
 
-<div id="bookModal" class="modal">
+<!-- Bulk Import Modal -->
+<div id="bulkModal" class="modal">
     <div class="modal-content">
-        <h3>📚 Add Book</h3>
-        <select id="bookSubjectId"></select>
-        <select id="bookGradeId"></select>
-        <input type="text" id="bookTitle" placeholder="Title *">
-        <input type="text" id="bookAuthor" placeholder="Author">
-        <input type="text" id="bookPublisher" placeholder="Publisher">
-        <input type="url" id="bookFileUrl" placeholder="File URL (Google Drive link)">
-        <textarea id="bookDesc" rows="3" placeholder="Description"></textarea>
-        <button onclick="saveBook()">Save Book</button>
-        <button onclick="closeModal('bookModal')">Cancel</button>
+        <h3>📄 Bulk Import Questions (CSV)</h3>
+        <select id="bulkSubject"></select>
+        <select id="bulkGrade"></select>
+        <textarea id="csvData" rows="8" placeholder='Paste CSV data here. Format:
+question,answer,explanation,difficulty,topic
+What is 2+2?,4,Basic addition,easy,Math
+What is the capital of France?,Paris,European capital,medium,Geography'></textarea>
+        <p style="font-size:0.75rem; color:#64748b;">📝 Format: question,answer,explanation,difficulty,topic</p>
+        <div id="bulkProgress" class="progress-bar" style="display:none;"><div class="progress-fill" id="bulkProgressFill"></div></div>
+        <button class="btn-success" onclick="importBulkQuestions()">📤 Import Questions</button>
+        <button onclick="closeModal('bulkModal')">Cancel</button>
     </div>
 </div>
 
-<div id="teacherModal" class="modal">
-    <div class="modal-content">
-        <h3>👑 Add Teacher</h3>
-        <input type="text" id="teacherName" placeholder="Full Name *">
-        <input type="email" id="teacherEmail" placeholder="Email *">
-        <input type="password" id="teacherPassword" placeholder="Password *">
-        <select id="teacherRole">
-            <option value="teacher">👨‍🏫 Teacher</option>
-            <option value="super_admin">👑 Super Admin</option>
-        </select>
-        <button onclick="createTeacher()">Create Teacher</button>
-        <button onclick="closeModal('teacherModal')">Cancel</button>
-    </div>
-</div>
+<div id="questionModal" class="modal"><div class="modal-content"><h3>❓ Add Question</h3><select id="questionSubjectId"></select><select id="questionGradeId"></select><textarea id="questionText" rows="3" placeholder="Question *"></textarea><textarea id="questionAnswer" rows="3" placeholder="Answer *"></textarea><textarea id="questionExplanation" rows="2" placeholder="Explanation (optional)"></textarea><select id="questionDifficulty"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select><input type="text" id="questionTopic" placeholder="Topic"><button onclick="saveQuestion()">Save</button><button onclick="closeModal('questionModal')">Cancel</button></div></div>
+
+<div id="bookModal" class="modal"><div class="modal-content"><h3>📚 Add Book</h3><select id="bookSubjectId"></select><select id="bookGradeId"></select><input type="text" id="bookTitle" placeholder="Title *"><input type="text" id="bookAuthor" placeholder="Author"><input type="url" id="bookFileUrl" placeholder="File URL"><textarea id="bookDesc" rows="3" placeholder="Description"></textarea><button onclick="saveBook()">Save</button><button onclick="closeModal('bookModal')">Cancel</button></div></div>
+
+<div id="teacherModal" class="modal"><div class="modal-content"><h3>👑 Add Teacher</h3><input type="text" id="teacherName" placeholder="Full Name *"><input type="email" id="teacherEmail" placeholder="Email *"><input type="password" id="teacherPassword" placeholder="Password *"><select id="teacherRole"><option value="teacher">Teacher</option><option value="super_admin">Super Admin</option></select><button onclick="createTeacher()">Create</button><button onclick="closeModal('teacherModal')">Cancel</button></div></div>
 
 <div id="toast" class="toast"></div>
 
 <script>
 const SUPABASE_URL = "https://zecfvwgozgljqpmxfliv.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2Z2d2dvemdsanFwbXhmbGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDU4NjUsImV4cCI6MjA5MDQyMTg2NX0.x4IxAt2lBTXsAT6pBZJyW_NL9hvzf3rUG-9EhziK7dE";
+const GEMINI_KEY = "AIzaSyCaKyuaXxNcQ18xtvFwA69Gf4OyIX5gz04";
 const TEACHER_ID = "9eb32f57-8d2b-436e-91c8-e1cd0ad9ba89";
 const TEACHER_PIN = "123456";
 const ADMIN_PASS = "admin123";
 
 let isSuperAdmin = false;
+let generatedQuestions = [];
+let generatedNote = null;
 
 function showToast(msg, type = 'success') {
     const toast = document.getElementById('toast');
@@ -500,6 +503,271 @@ async function api(table, options = {}) {
     }
 }
 
+async function callGemini(prompt) {
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch(e) {
+        console.error('Gemini error:', e);
+        return '';
+    }
+}
+
+async function generateAIQuestions() {
+    const subject = document.getElementById('aiSubject').options[document.getElementById('aiSubject').selectedIndex]?.text || 'General';
+    const grade = document.getElementById('aiGrade').options[document.getElementById('aiGrade').selectedIndex]?.text || 'General';
+    const topic = document.getElementById('aiTopic').value;
+    const difficulty = document.getElementById('aiDifficulty').value;
+    const count = document.getElementById('aiCount').value;
+    const instruction = document.getElementById('aiInstruction').value;
+    
+    if (!topic) {
+        showToast('Please enter a topic', 'error');
+        return;
+    }
+    
+    showToast('🤖 AI is generating questions... Please wait.', 'success');
+    
+    const prompt = `Generate ${count} ${difficulty} difficulty educational questions about "${topic}" for ${subject} subject, ${grade} level.
+    Format each question as:
+    Q: [question text]
+    A: [correct answer]
+    E: [explanation of the answer]
+    
+    ${instruction ? `Additional instructions: ${instruction}` : ''}
+    
+    Make questions clear and suitable for students.`;
+    
+    const aiResponse = await callGemini(prompt);
+    
+    // Parse AI response
+    const lines = aiResponse.split('\n');
+    generatedQuestions = [];
+    let currentQ = null;
+    
+    for (const line of lines) {
+        if (line.startsWith('Q:')) {
+            if (currentQ) generatedQuestions.push(currentQ);
+            currentQ = { question_text: line.substring(2).trim(), answer: '', explanation: '' };
+        } else if (line.startsWith('A:') && currentQ) {
+            currentQ.answer = line.substring(2).trim();
+        } else if (line.startsWith('E:') && currentQ) {
+            currentQ.explanation = line.substring(2).trim();
+        }
+    }
+    if (currentQ) generatedQuestions.push(currentQ);
+    
+    // Display preview
+    const previewDiv = document.getElementById('aiPreview');
+    previewDiv.style.display = 'block';
+    previewDiv.innerHTML = '<h4>✨ Generated Questions (click to select/deselect):</h4>' + 
+        generatedQuestions.map((q, i) => `
+            <div class="ai-preview-item" onclick="toggleSelectQuestion(${i})" data-index="${i}">
+                <strong>${i+1}. ${escapeHtml(q.question_text)}</strong><br>
+                <span style="color:#22c55e">Answer: ${escapeHtml(q.answer)}</span><br>
+                <small>Explanation: ${escapeHtml(q.explanation || 'N/A')}</small>
+            </div>
+        `).join('');
+    
+    document.getElementById('saveAiBtn').style.display = 'block';
+    document.getElementById('saveAiBtn').innerHTML = `💾 Save Selected (0/${generatedQuestions.length})`;
+    window.selectedQuestions = new Set();
+}
+
+function toggleSelectQuestion(index) {
+    if (!window.selectedQuestions) window.selectedQuestions = new Set();
+    if (window.selectedQuestions.has(index)) {
+        window.selectedQuestions.delete(index);
+        document.querySelector(`.ai-preview-item[data-index="${index}"]`).classList.remove('selected');
+    } else {
+        window.selectedQuestions.add(index);
+        document.querySelector(`.ai-preview-item[data-index="${index}"]`).classList.add('selected');
+    }
+    document.getElementById('saveAiBtn').innerHTML = `💾 Save Selected (${window.selectedQuestions.size}/${generatedQuestions.length})`;
+}
+
+async function saveAIQuestions() {
+    const subjectId = document.getElementById('aiSubject').value;
+    const gradeId = document.getElementById('aiGrade').value;
+    
+    if (!window.selectedQuestions || window.selectedQuestions.size === 0) {
+        showToast('Select at least one question to save', 'error');
+        return;
+    }
+    
+    let saved = 0;
+    for (const index of window.selectedQuestions) {
+        const q = generatedQuestions[index];
+        if (q && q.question_text && q.answer) {
+            await api('questions', {
+                method: 'POST',
+                data: {
+                    teacher_id: TEACHER_ID,
+                    subject_id: subjectId || null,
+                    grade_level_id: gradeId || null,
+                    question_text: q.question_text,
+                    answer: q.answer,
+                    explanation: q.explanation || '',
+                    difficulty: document.getElementById('aiDifficulty').value,
+                    topic: document.getElementById('aiTopic').value,
+                    is_active: true
+                }
+            });
+            saved++;
+        }
+    }
+    
+    showToast(`✅ ${saved} questions saved!`);
+    closeModal('aiModal');
+    loadQuestions();
+    loadStats();
+}
+
+async function generateAINote() {
+    const subject = document.getElementById('aiNoteSubject').options[document.getElementById('aiNoteSubject').selectedIndex]?.text || 'General';
+    const grade = document.getElementById('aiNoteGrade').options[document.getElementById('aiNoteGrade').selectedIndex]?.text || 'General';
+    const topic = document.getElementById('aiNoteTopic').value;
+    const instruction = document.getElementById('aiNoteInstruction').value;
+    
+    if (!topic) {
+        showToast('Please enter a topic', 'error');
+        return;
+    }
+    
+    showToast('🤖 AI is generating note... Please wait.', 'success');
+    
+    const prompt = `Write an educational daily learning note about "${topic}" for ${subject} subject, ${grade} level students.
+    
+    The note should include:
+    - A clear title
+    - Key concepts explained simply
+    - Examples where helpful
+    - A fun fact or interesting tidbit
+    
+    ${instruction ? `Additional instructions: ${instruction}` : ''}
+    
+    Format the note with markdown headings and bullet points.`;
+    
+    generatedNote = await callGemini(prompt);
+    
+    const previewDiv = document.getElementById('aiNotePreview');
+    previewDiv.style.display = 'block';
+    previewDiv.innerHTML = `<h4>✨ Generated Note:</h4><div style="white-space: pre-wrap;">${escapeHtml(generatedNote)}</div>`;
+    document.getElementById('saveAiNoteBtn').style.display = 'block';
+}
+
+async function saveAINote() {
+    const subjectId = document.getElementById('aiNoteSubject').value;
+    const gradeId = document.getElementById('aiNoteGrade').value;
+    const topic = document.getElementById('aiNoteTopic').value;
+    
+    if (!generatedNote) {
+        showToast('Generate a note first', 'error');
+        return;
+    }
+    
+    const title = `AI Generated: ${topic}`;
+    
+    await api('daily_notes', {
+        method: 'POST',
+        data: {
+            teacher_id: TEACHER_ID,
+            subject_id: subjectId || null,
+            grade_level_id: gradeId || null,
+            title: title,
+            content: generatedNote,
+            topic: topic,
+            note_date: new Date().toISOString().split('T')[0],
+            is_published: true
+        }
+    });
+    
+    showToast('✅ Note saved!');
+    closeModal('aiNoteModal');
+    loadNotes();
+    loadStats();
+}
+
+async function importBulkQuestions() {
+    const csvText = document.getElementById('csvData').value;
+    const subjectId = document.getElementById('bulkSubject').value;
+    const gradeId = document.getElementById('bulkGrade').value;
+    
+    if (!csvText) {
+        showToast('Paste CSV data first', 'error');
+        return;
+    }
+    
+    const lines = csvText.trim().split('\n');
+    const headers = lines[0].toLowerCase().split(',');
+    
+    let qIndex = headers.findIndex(h => h.includes('question'));
+    let aIndex = headers.findIndex(h => h.includes('answer'));
+    let eIndex = headers.findIndex(h => h.includes('explanation'));
+    let dIndex = headers.findIndex(h => h.includes('difficulty'));
+    let tIndex = headers.findIndex(h => h.includes('topic'));
+    
+    if (qIndex === -1 || aIndex === -1) {
+        showToast('CSV must have question and answer columns', 'error');
+        return;
+    }
+    
+    const questions = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        if (values.length > Math.max(qIndex, aIndex)) {
+            questions.push({
+                question_text: values[qIndex]?.trim(),
+                answer: values[aIndex]?.trim(),
+                explanation: eIndex !== -1 ? values[eIndex]?.trim() : '',
+                difficulty: dIndex !== -1 ? values[dIndex]?.trim() : 'medium',
+                topic: tIndex !== -1 ? values[tIndex]?.trim() : ''
+            });
+        }
+    }
+    
+    const progressDiv = document.getElementById('bulkProgress');
+    const progressFill = document.getElementById('bulkProgressFill');
+    progressDiv.style.display = 'block';
+    
+    let saved = 0;
+    for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (q.question_text && q.answer) {
+            await api('questions', {
+                method: 'POST',
+                data: {
+                    teacher_id: TEACHER_ID,
+                    subject_id: subjectId || null,
+                    grade_level_id: gradeId || null,
+                    question_text: q.question_text,
+                    answer: q.answer,
+                    explanation: q.explanation || '',
+                    difficulty: q.difficulty || 'medium',
+                    topic: q.topic || '',
+                    is_active: true
+                }
+            });
+            saved++;
+            progressFill.style.width = `${((i + 1) / questions.length) * 100}%`;
+        }
+    }
+    
+    progressDiv.style.display = 'none';
+    showToast(`✅ ${saved} questions imported!`);
+    closeModal('bulkModal');
+    loadQuestions();
+    loadStats();
+}
+
+// Login and Data Loading Functions
 function login() {
     const role = document.getElementById('role').value;
     const password = document.getElementById('password').value;
@@ -509,7 +777,6 @@ function login() {
         if (password === TEACHER_PIN) {
             isSuperAdmin = false;
             document.getElementById('roleBadge').innerHTML = '👨‍🏫 Teacher';
-            document.getElementById('roleBadge').className = 'badge badge-primary';
             document.getElementById('adminNav').style.display = 'none';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
@@ -522,7 +789,6 @@ function login() {
         if (password === ADMIN_PASS) {
             isSuperAdmin = true;
             document.getElementById('roleBadge').innerHTML = '👑 Super Admin';
-            document.getElementById('roleBadge').className = 'badge badge-primary';
             document.getElementById('adminNav').style.display = 'block';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
@@ -561,7 +827,7 @@ async function loadStats() {
     ]);
     document.getElementById('stats').innerHTML = `
         <div class="stat-card"><div class="value">${subjects.data?.length || 0}</div><div class="label">📚 Subjects</div></div>
-        <div class="stat-card"><div class="value">${grades.data?.length || 0}</div><div class="label">🎓 Grade Levels</div></div>
+        <div class="stat-card"><div class="value">${grades.data?.length || 0}</div><div class="label">🎓 Grades</div></div>
         <div class="stat-card"><div class="value">${notes.data?.length || 0}</div><div class="label">📝 Notes</div></div>
         <div class="stat-card"><div class="value">${questions.data?.length || 0}</div><div class="label">❓ Questions</div></div>
         <div class="stat-card"><div class="value">${students.data?.length || 0}</div><div class="label">👨‍🎓 Students</div></div>
@@ -584,7 +850,6 @@ async function loadSubjects() {
             `).join('')}</tbody>
         `;
     }
-    // Update dropdowns
     const options = `<option value="">All Subjects</option>${(result.data || []).map(s => `<option value="${s.id}">${s.icon || '📚'} ${escapeHtml(s.name)}</option>`).join('')}`;
     document.getElementById('noteSubjectFilter').innerHTML = options;
     document.getElementById('questionSubjectFilter').innerHTML = options;
@@ -593,13 +858,16 @@ async function loadSubjects() {
     document.getElementById('noteSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
     document.getElementById('questionSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
     document.getElementById('bookSubjectId').innerHTML = options.replace('All Subjects', 'Select Subject');
+    document.getElementById('aiSubject').innerHTML = options.replace('All Subjects', 'Select Subject');
+    document.getElementById('aiNoteSubject').innerHTML = options.replace('All Subjects', 'Select Subject');
+    document.getElementById('bulkSubject').innerHTML = options.replace('All Subjects', 'Select Subject');
 }
 
 async function loadGrades() {
     const result = await api('grade_levels', { filter: { column: 'teacher_id', value: TEACHER_ID }, order: { column: 'order_index', direction: 'asc' } });
     if (result.data?.length) {
         const getTypeBadge = (type) => {
-            const badges = { 'primary': 'badge-primary', 'secondary': 'badge-primary', 'tvet': 'badge-tvet', 'degree': 'badge-degree', 'postgraduate': 'badge-post' };
+            const badges = { 'primary': 'badge-primary', 'secondary': 'badge-primary', 'tvet': 'badge-primary', 'degree': 'badge-primary', 'postgraduate': 'badge-primary' };
             return `<span class="badge ${badges[type] || 'badge-primary'}">${type}</span>`;
         };
         document.getElementById('gradesTable').innerHTML = `
@@ -614,14 +882,16 @@ async function loadGrades() {
             `).join('')}</tbody>
         `;
     }
-    // Update grade dropdowns
-    const gradeOptions = `<option value="">All Grades</option>${(result.data || []).map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('')}`;
-    document.getElementById('noteGradeFilter').innerHTML = gradeOptions;
-    document.getElementById('questionGradeFilter').innerHTML = gradeOptions;
-    document.getElementById('bookGradeFilter').innerHTML = gradeOptions;
-    document.getElementById('noteGradeId').innerHTML = gradeOptions.replace('All Grades', 'Select Grade');
-    document.getElementById('questionGradeId').innerHTML = gradeOptions.replace('All Grades', 'Select Grade');
-    document.getElementById('bookGradeId').innerHTML = gradeOptions.replace('All Grades', 'Select Grade');
+    const options = `<option value="">All Grades</option>${(result.data || []).map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('')}`;
+    document.getElementById('noteGradeFilter').innerHTML = options;
+    document.getElementById('questionGradeFilter').innerHTML = options;
+    document.getElementById('bookGradeFilter').innerHTML = options;
+    document.getElementById('noteGradeId').innerHTML = options.replace('All Grades', 'Select Grade');
+    document.getElementById('questionGradeId').innerHTML = options.replace('All Grades', 'Select Grade');
+    document.getElementById('bookGradeId').innerHTML = options.replace('All Grades', 'Select Grade');
+    document.getElementById('aiGrade').innerHTML = options.replace('All Grades', 'Select Grade');
+    document.getElementById('aiNoteGrade').innerHTML = options.replace('All Grades', 'Select Grade');
+    document.getElementById('bulkGrade').innerHTML = options.replace('All Grades', 'Select Grade');
 }
 
 async function loadNotes() {
@@ -646,7 +916,7 @@ async function loadNotes() {
             `).join('')}</tbody>
         `;
     } else {
-        document.getElementById('notesTable').innerHTML = '<div class="empty">📭 No notes yet. Add your first note!</div>';
+        document.getElementById('notesTable').innerHTML = '<div class="empty">📭 No notes yet</div>';
     }
 }
 
@@ -663,14 +933,14 @@ async function loadQuestions() {
             <tbody>${result.data.map(q => `
                 <tr>
                     <td>${escapeHtml(q.question_text.substring(0, 80))}...</td>
-                    <td><span class="badge ${q.difficulty === 'easy' ? 'badge-primary' : q.difficulty === 'hard' ? 'badge-tvet' : 'badge-primary'}">${q.difficulty || 'medium'}</span></td>
+                    <td><span class="badge ${q.difficulty === 'easy' ? 'badge-primary' : 'badge-primary'}">${q.difficulty || 'medium'}</span></td>
                     <td>${q.topic || '-'}</td>
                     <td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td>
                 </tr>
             `).join('')}</tbody>
         `;
     } else {
-        document.getElementById('questionsTable').innerHTML = '<div class="empty">❓ No questions yet. Add your first question!</div>';
+        document.getElementById('questionsTable').innerHTML = '<div class="empty">❓ No questions yet</div>';
     }
 }
 
@@ -695,7 +965,7 @@ async function loadBooks() {
             `).join('')}</tbody>
         `;
     } else {
-        document.getElementById('booksTable').innerHTML = '<div class="empty">📚 No books yet. Add your first book!</div>';
+        document.getElementById('booksTable').innerHTML = '<div class="empty">📚 No books yet</div>';
     }
 }
 
@@ -730,7 +1000,7 @@ async function loadTeachers() {
                 <tr>
                     <td><strong>${escapeHtml(t.name)}</strong></td>
                     <td>${escapeHtml(t.email)}</td>
-                    <td><span class="badge ${t.role === 'super_admin' ? 'badge-degree' : 'badge-primary'}">${t.role || 'teacher'}</span></td>
+                    <td><span class="badge ${t.role === 'super_admin' ? 'badge-primary' : 'badge-primary'}">${t.role || 'teacher'}</span></td>
                     <td><span style="color:${t.is_active ? '#22c55e' : '#ef4444'}">${t.is_active ? 'Active' : 'Blocked'}</span></td>
                     <td><button class="btn-small btn-danger" onclick="deleteTeacher('${t.id}')">Delete</button></td>
                 </tr>
@@ -739,10 +1009,10 @@ async function loadTeachers() {
     }
 }
 
-// SAVE FUNCTIONS
+// CRUD Functions
 async function saveSubject() {
     const data = { teacher_id: TEACHER_ID, name: document.getElementById('subjectName').value, code: document.getElementById('subjectCode').value, icon: document.getElementById('subjectIcon').value, color: document.getElementById('subjectColor').value, description: document.getElementById('subjectDesc').value };
-    if (!data.name) { showToast('Subject name required', 'error'); return; }
+    if (!data.name) { showToast('Name required', 'error'); return; }
     await api('subjects', { method: 'POST', data });
     closeModal('subjectModal');
     loadAllData();
@@ -751,11 +1021,11 @@ async function saveSubject() {
 
 async function saveGrade() {
     const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('gradeSubjectId').value, name: document.getElementById('gradeName').value, level_type: document.getElementById('gradeType').value, order_index: parseInt(document.getElementById('gradeOrder').value) || 0 };
-    if (!data.subject_id || !data.name) { showToast('Subject and grade name required', 'error'); return; }
+    if (!data.subject_id || !data.name) { showToast('Subject and name required', 'error'); return; }
     await api('grade_levels', { method: 'POST', data });
     closeModal('gradeModal');
     loadAllData();
-    showToast('Grade level added!');
+    showToast('Grade added!');
 }
 
 async function saveNote() {
@@ -777,7 +1047,7 @@ async function saveQuestion() {
 }
 
 async function saveBook() {
-    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('bookSubjectId').value, grade_level_id: document.getElementById('bookGradeId').value, title: document.getElementById('bookTitle').value, author: document.getElementById('bookAuthor').value, publisher: document.getElementById('bookPublisher').value, file_url: document.getElementById('bookFileUrl').value, description: document.getElementById('bookDesc').value, is_active: true };
+    const data = { teacher_id: TEACHER_ID, subject_id: document.getElementById('bookSubjectId').value, grade_level_id: document.getElementById('bookGradeId').value, title: document.getElementById('bookTitle').value, author: document.getElementById('bookAuthor').value, file_url: document.getElementById('bookFileUrl').value, description: document.getElementById('bookDesc').value, is_active: true };
     if (!data.title) { showToast('Title required', 'error'); return; }
     await api('books', { method: 'POST', data });
     closeModal('bookModal');
@@ -793,8 +1063,7 @@ async function createTeacher() {
     showToast('Teacher created!');
 }
 
-// DELETE FUNCTIONS
-async function deleteSubject(id) { if (confirm('Delete subject? All related data will be deleted!')) { await api(`subjects?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
+async function deleteSubject(id) { if (confirm('Delete subject?')) { await api(`subjects?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
 async function deleteGrade(id) { if (confirm('Delete grade?')) { await api(`grade_levels?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
 async function deleteNote(id) { if (confirm('Delete note?')) { await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
 async function deleteQuestion(id) { if (confirm('Delete question?')) { await api(`questions?id=eq.${id}`, { method: 'DELETE' }); loadAllData(); showToast('Deleted'); } }
@@ -814,6 +1083,9 @@ function openNoteModal() { document.getElementById('noteDate').value = new Date(
 function openQuestionModal() { document.getElementById('questionModal').style.display = 'flex'; }
 function openBookModal() { document.getElementById('bookModal').style.display = 'flex'; }
 function openTeacherModal() { document.getElementById('teacherModal').style.display = 'flex'; }
+function openAIGenerateModal() { document.getElementById('aiModal').style.display = 'flex'; }
+function openAIGenerateNoteModal() { document.getElementById('aiNoteModal').style.display = 'flex'; }
+function openBulkImportModal() { document.getElementById('bulkModal').style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 </script>
