@@ -98,16 +98,9 @@ def update_student_subject(telegram_id, subject_id):
     supabase_query(f"students?telegram_id=eq.{telegram_id}", "PATCH", {"subject_id": subject_id})
 
 def get_grade_levels():
-    # Get DISTINCT grade levels to avoid duplicates
+    """Get all grade levels ordered by order_index"""
     result = supabase_query(f"grade_levels?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&order=order_index.asc")
-    # Remove duplicates by name
-    seen = set()
-    unique_grades = []
-    for grade in result:
-        if grade['name'] not in seen:
-            seen.add(grade['name'])
-            unique_grades.append(grade)
-    return unique_grades
+    return result
 
 def get_subjects():
     return supabase_query(f"subjects?teacher_id=eq.{TEACHER_ID}&is_active=eq.true")
@@ -194,7 +187,7 @@ async def show_welcome_page(update: Update, context):
         )
 
 async def show_onboarding(update: Update, context):
-    """Step 1: Ask for grade level (no duplicates)"""
+    """Step 1: Ask for grade level with organized categories"""
     grades = get_grade_levels()
     
     if not grades:
@@ -205,16 +198,69 @@ async def show_onboarding(update: Update, context):
         )
         return
     
+    # Group grades by level_type
+    primary_grades = [g for g in grades if g.get('level_type') == 'primary']
+    secondary_grades = [g for g in grades if g.get('level_type') == 'secondary']
+    tvet_grades = [g for g in grades if g.get('level_type') == 'tvet']
+    degree_grades = [g for g in grades if g.get('level_type') == 'degree']
+    postgraduate_grades = [g for g in grades if g.get('level_type') == 'postgraduate']
+    
     keyboard = []
-    for grade in grades:
-        emoji = "🎓" if grade.get('level_type') == 'college' else "📚"
-        keyboard.append([InlineKeyboardButton(f"{emoji} {grade['name']}", callback_data=f"grade_{grade['id']}")])
+    
+    # Primary School Section
+    if primary_grades:
+        keyboard.append([InlineKeyboardButton("📚 ━━━ Primary School ━━━ 📚", callback_data="dummy")])
+        row = []
+        for grade in primary_grades:
+            row.append(InlineKeyboardButton(f"{grade.get('icon', '📚')} {grade['name']}", callback_data=f"grade_{grade['id']}"))
+            if len(row) == 3:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+    
+    # Secondary School Section
+    if secondary_grades:
+        keyboard.append([InlineKeyboardButton("📖 ━━━ Secondary School ━━━ 📖", callback_data="dummy")])
+        row = []
+        for grade in secondary_grades:
+            row.append(InlineKeyboardButton(f"{grade.get('icon', '📖')} {grade['name']}", callback_data=f"grade_{grade['id']}"))
+            if len(row) == 3:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+    
+    # TVET Section
+    if tvet_grades:
+        keyboard.append([InlineKeyboardButton("🔧 ━━━ TVET / Vocational ━━━ 🔧", callback_data="dummy")])
+        for grade in tvet_grades:
+            keyboard.append([InlineKeyboardButton(f"{grade.get('icon', '🔧')} {grade['name']}", callback_data=f"grade_{grade['id']}")])
+    
+    # College/Degree Section
+    if degree_grades:
+        keyboard.append([InlineKeyboardButton("🎓 ━━━ College / Degree ━━━ 🎓", callback_data="dummy")])
+        row = []
+        for grade in degree_grades:
+            row.append(InlineKeyboardButton(f"{grade.get('icon', '🎓')} {grade['name']}", callback_data=f"grade_{grade['id']}"))
+            if len(row) == 2:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+    
+    # Postgraduate Section
+    if postgraduate_grades:
+        keyboard.append([InlineKeyboardButton("👨‍🎓 ━━━ Postgraduate ━━━ 👨‍🎓", callback_data="dummy")])
+        for grade in postgraduate_grades:
+            keyboard.append([InlineKeyboardButton(f"{grade.get('icon', '👨‍🎓')} {grade['name']}", callback_data=f"grade_{grade['id']}")])
     
     keyboard.append([InlineKeyboardButton("🔙 Back to Welcome", callback_data="back_to_welcome")])
     
     await update.callback_query.message.edit_text(
         "🎓 *Setup Your Profile*\n\n"
-        "*Step 1:* Select your grade/level 👇",
+        "*Step 1:* Select your education level 👇\n\n"
+        "Choose the grade or level you are currently in:",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -222,6 +268,10 @@ async def show_onboarding(update: Update, context):
 async def grade_selected(update: Update, context):
     query = update.callback_query
     await query.answer()
+    
+    # Ignore dummy button clicks
+    if query.data == "dummy":
+        return
     
     grade_id = query.data.split('_')[1]
     context.user_data['selected_grade_id'] = grade_id
@@ -242,10 +292,11 @@ async def grade_selected(update: Update, context):
         keyboard.append([InlineKeyboardButton(f"{icon} {subject['name']}", callback_data=f"subject_{subject['id']}")])
     
     keyboard.append([InlineKeyboardButton("🔙 Back to Grades", callback_data="back_to_grades")])
-    keyboard.append([InlineKeyboardButton("🔙 Back to Welcome", callback_data="back_to_welcome")])
+    keyboard.append([InlineKeyboardButton("🏠 Back to Welcome", callback_data="back_to_welcome")])
     
     await query.message.edit_text(
-        "🎓 *Step 2:* Select your subject 👇",
+        "🎓 *Step 2:* Select your subject 👇\n\n"
+        "Choose the subject you're studying:",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -281,12 +332,12 @@ async def show_main_menu(update: Update, context):
     welcome_text = f"🎓 *Welcome to EduBot!*\n\n"
     
     if student:
-        grade = supabase_query(f"grade_levels?id=eq.{student.get('grade_level_id')}&select=name")
+        grade = supabase_query(f"grade_levels?id=eq.{student.get('grade_level_id')}&select=name,icon")
         subject = supabase_query(f"subjects?id=eq.{student.get('subject_id')}&select=name,icon")
         if grade:
-            welcome_text += f"📚 Grade: *{grade[0]['name']}*\n"
+            welcome_text += f"📚 *Education Level:* {grade[0].get('icon', '📚')} {grade[0]['name']}\n"
         if subject:
-            welcome_text += f"📖 Subject: *{subject[0]['icon']} {subject[0]['name']}*\n"
+            welcome_text += f"📖 *Subject:* {subject[0].get('icon', '📖')} {subject[0]['name']}\n"
     
     welcome_text += f"\n✨ *What would you like to do?* ✨\n"
     
@@ -521,32 +572,7 @@ async def change_settings(update: Update, context):
     # Clear context data
     context.user_data.clear()
     
-    # Show grade selection again
-    grades = get_grade_levels()
-    
-    if not grades:
-        await query.message.edit_text(
-            "📚 *Change Settings*\n\n"
-            "⚠️ No grade levels available. Please contact your teacher.",
-            parse_mode='Markdown'
-        )
-        return
-    
-    keyboard = []
-    for grade in grades:
-        emoji = "🎓" if grade.get('level_type') == 'college' else "📚"
-        keyboard.append([InlineKeyboardButton(f"{emoji} {grade['name']}", callback_data=f"grade_{grade['id']}")])
-    
-    keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")])
-    keyboard.append([InlineKeyboardButton("🏠 Back to Welcome", callback_data="back_to_welcome")])
-    
-    await query.message.edit_text(
-        "🔄 *Change Your Settings*\n\n"
-        "*Step 1:* Select your new grade/level 👇\n\n"
-        "You can change your subject after selecting a grade.",
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await show_onboarding(update, context)
 
 async def show_progress(update: Update, context):
     query = update.callback_query
@@ -565,16 +591,16 @@ async def show_progress(update: Update, context):
     text = "📊 *Your Learning Progress*\n\n"
     
     if student.get('grade_level_id'):
-        grade = supabase_query(f"grade_levels?id=eq.{student['grade_level_id']}&select=name")
+        grade = supabase_query(f"grade_levels?id=eq.{student['grade_level_id']}&select=name,icon")
         if grade:
-            text += f"🎓 Grade: {grade[0]['name']}\n"
+            text += f"📚 {grade[0].get('icon', '📚')} *Education Level:* {grade[0]['name']}\n"
     
     if student.get('subject_id'):
         subject = supabase_query(f"subjects?id=eq.{student['subject_id']}&select=name,icon")
         if subject:
-            text += f"📖 Subject: {subject[0]['icon']} {subject[0]['name']}\n"
+            text += f"📖 {subject[0].get('icon', '📖')} *Subject:* {subject[0]['name']}\n"
     
-    text += f"\n📅 Started: {student['enrolled_at'][:10] if student.get('enrolled_at') else 'Recently'}\n\n"
+    text += f"\n📅 *Started:* {student['enrolled_at'][:10] if student.get('enrolled_at') else 'Recently'}\n\n"
     text += "💡 Keep learning! Take quizzes and answer questions to see your progress here."
     
     keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
@@ -593,6 +619,12 @@ async def show_help(update: Update, context):
     text += "📋 View all notes\n"
     text += "📊 Track progress\n"
     text += "🔄 Change grade or subject\n\n"
+    text += "*Education Levels Supported:*\n"
+    text += "📚 Primary School (Grades 1-6)\n"
+    text += "📖 Secondary School (Grades 7-12)\n"
+    text += "🔧 TVET / Vocational\n"
+    text += "🎓 College / Degree (Year 1-4)\n"
+    text += "👨‍🎓 Postgraduate (Master's, PhD)\n\n"
     text += "Contact your teacher for more help!"
     
     keyboard = [
@@ -617,6 +649,8 @@ async def button_callback(update: Update, context):
         await show_welcome_page(update, context)
     elif data == "back_to_grades":
         await show_onboarding(update, context)
+    elif data == "dummy":
+        await query.answer()  # Ignore dummy buttons
     elif data.startswith("grade_"):
         await grade_selected(update, context)
     elif data.startswith("subject_"):
