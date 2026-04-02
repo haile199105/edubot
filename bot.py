@@ -98,7 +98,16 @@ def update_student_subject(telegram_id, subject_id):
     supabase_query(f"students?telegram_id=eq.{telegram_id}", "PATCH", {"subject_id": subject_id})
 
 def get_grade_levels():
-    return supabase_query(f"grade_levels?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&order=order_index.asc")
+    # Get DISTINCT grade levels to avoid duplicates
+    result = supabase_query(f"grade_levels?teacher_id=eq.{TEACHER_ID}&is_active=eq.true&order=order_index.asc")
+    # Remove duplicates by name
+    seen = set()
+    unique_grades = []
+    for grade in result:
+        if grade['name'] not in seen:
+            seen.add(grade['name'])
+            unique_grades.append(grade)
+    return unique_grades
 
 def get_subjects():
     return supabase_query(f"subjects?teacher_id=eq.{TEACHER_ID}&is_active=eq.true")
@@ -155,15 +164,42 @@ async def start(update: Update, context):
     if student and student.get('grade_level_id') and student.get('subject_id'):
         await show_main_menu(update, context)
     else:
-        await show_onboarding(update, context)
+        await show_welcome_page(update, context)
+
+async def show_welcome_page(update: Update, context):
+    """Show welcome page with options"""
+    user = update.effective_user
+    
+    welcome_text = f"🎓 *Welcome to EduBot, {user.first_name}!*\n\n"
+    welcome_text += "I'm your personal AI learning assistant.\n\n"
+    welcome_text += "What would you like to do?\n"
+    
+    keyboard = [
+        [InlineKeyboardButton("🚀 Get Started", callback_data="get_started")],
+        [InlineKeyboardButton("❓ Help", callback_data="help")]
+    ]
+    
+    if update.callback_query:
+        await update.callback_query.message.edit_text(
+            welcome_text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        await update.callback_query.answer()
+    else:
+        await update.message.reply_text(
+            welcome_text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 async def show_onboarding(update: Update, context):
-    """Step 1: Ask for grade level"""
+    """Step 1: Ask for grade level (no duplicates)"""
     grades = get_grade_levels()
     
     if not grades:
-        await update.message.reply_text(
-            "📚 *Welcome to EduBot!*\n\n"
+        await update.callback_query.message.edit_text(
+            "📚 *Setup Your Profile*\n\n"
             "⚠️ No grade levels available yet. Please contact your teacher.",
             parse_mode='Markdown'
         )
@@ -174,9 +210,10 @@ async def show_onboarding(update: Update, context):
         emoji = "🎓" if grade.get('level_type') == 'college' else "📚"
         keyboard.append([InlineKeyboardButton(f"{emoji} {grade['name']}", callback_data=f"grade_{grade['id']}")])
     
-    await update.message.reply_text(
-        "🎓 *Welcome to EduBot!*\n\n"
-        "I'm your personal AI learning assistant.\n\n"
+    keyboard.append([InlineKeyboardButton("🔙 Back to Welcome", callback_data="back_to_welcome")])
+    
+    await update.callback_query.message.edit_text(
+        "🎓 *Setup Your Profile*\n\n"
         "*Step 1:* Select your grade/level 👇",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -204,6 +241,9 @@ async def grade_selected(update: Update, context):
         icon = subject.get('icon', '📚')
         keyboard.append([InlineKeyboardButton(f"{icon} {subject['name']}", callback_data=f"subject_{subject['id']}")])
     
+    keyboard.append([InlineKeyboardButton("🔙 Back to Grades", callback_data="back_to_grades")])
+    keyboard.append([InlineKeyboardButton("🔙 Back to Welcome", callback_data="back_to_welcome")])
+    
     await query.message.edit_text(
         "🎓 *Step 2:* Select your subject 👇",
         parse_mode='Markdown',
@@ -230,7 +270,6 @@ async def show_main_menu(update: Update, context):
     """Main menu after setup"""
     user_id = update.effective_user.id
     
-    # Check if this is from callback or direct message
     if update.callback_query:
         message = update.callback_query.message
         await update.callback_query.answer()
@@ -259,6 +298,7 @@ async def show_main_menu(update: Update, context):
         [InlineKeyboardButton("📋 All Notes", callback_data="all_notes")],
         [InlineKeyboardButton("📊 My Progress", callback_data="progress")],
         [InlineKeyboardButton("🔄 Change Settings", callback_data="change_settings")],
+        [InlineKeyboardButton("🏠 Back to Welcome", callback_data="back_to_welcome")],
         [InlineKeyboardButton("❓ Help", callback_data="help")]
     ]
     
@@ -287,7 +327,10 @@ async def daily_note(update: Update, context):
     
     if note:
         text = f"📝 *Today's Note*\n\n**{note['title']}**\n\n{note['content']}"
-        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+        keyboard = [
+            [InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")],
+            [InlineKeyboardButton("🏠 Back to Welcome", callback_data="back_to_welcome")]
+        ]
         await query.message.edit_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await query.message.edit_text(
@@ -465,10 +508,45 @@ async def handle_question(update: Update, context):
         await thinking_msg.edit_text("⚠️ AI service is busy. Please try again in a moment.")
 
 async def change_settings(update: Update, context):
+    """Allow user to change grade and subject"""
     query = update.callback_query
     await query.answer()
     
-    await show_onboarding(update, context)
+    user_id = query.from_user.id
+    
+    # Clear the user's grade and subject selections in database
+    update_student_grade(user_id, None)
+    update_student_subject(user_id, None)
+    
+    # Clear context data
+    context.user_data.clear()
+    
+    # Show grade selection again
+    grades = get_grade_levels()
+    
+    if not grades:
+        await query.message.edit_text(
+            "📚 *Change Settings*\n\n"
+            "⚠️ No grade levels available. Please contact your teacher.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    keyboard = []
+    for grade in grades:
+        emoji = "🎓" if grade.get('level_type') == 'college' else "📚"
+        keyboard.append([InlineKeyboardButton(f"{emoji} {grade['name']}", callback_data=f"grade_{grade['id']}")])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")])
+    keyboard.append([InlineKeyboardButton("🏠 Back to Welcome", callback_data="back_to_welcome")])
+    
+    await query.message.edit_text(
+        "🔄 *Change Your Settings*\n\n"
+        "*Step 1:* Select your new grade/level 👇\n\n"
+        "You can change your subject after selecting a grade.",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def show_progress(update: Update, context):
     query = update.callback_query
@@ -513,10 +591,14 @@ async def show_help(update: Update, context):
     text += "📚 Access books\n"
     text += "🤖 Ask AI any question\n"
     text += "📋 View all notes\n"
-    text += "📊 Track progress\n\n"
+    text += "📊 Track progress\n"
+    text += "🔄 Change grade or subject\n\n"
     text += "Contact your teacher for more help!"
     
-    keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")]]
+    keyboard = [
+        [InlineKeyboardButton("🔙 Back to Menu", callback_data="menu")],
+        [InlineKeyboardButton("🏠 Back to Welcome", callback_data="back_to_welcome")]
+    ]
     await query.message.edit_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
@@ -529,6 +611,12 @@ async def button_callback(update: Update, context):
     
     if data == "menu":
         await show_main_menu(update, context)
+    elif data == "get_started":
+        await show_onboarding(update, context)
+    elif data == "back_to_welcome":
+        await show_welcome_page(update, context)
+    elif data == "back_to_grades":
+        await show_onboarding(update, context)
     elif data.startswith("grade_"):
         await grade_selected(update, context)
     elif data.startswith("subject_"):
