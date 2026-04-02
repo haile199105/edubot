@@ -15,7 +15,6 @@
         }
         .container { max-width: 1400px; margin: 0 auto; }
         
-        /* Login Page */
         .login-container {
             display: flex;
             justify-content: center;
@@ -30,16 +29,8 @@
             width: 100%;
             border: 1px solid #334155;
         }
-        .login-card h1 {
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 1.8rem;
-        }
-        .login-card p {
-            text-align: center;
-            color: #94a3b8;
-            margin-bottom: 30px;
-        }
+        .login-card h1 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; }
+        .login-card p { text-align: center; color: #94a3b8; margin-bottom: 30px; }
         .login-card input, .login-card select {
             width: 100%;
             padding: 12px;
@@ -60,14 +51,8 @@
             font-size: 1rem;
             cursor: pointer;
         }
-        .login-card button:hover { background: #4f46e5; }
-        .error-msg {
-            color: #ef4444;
-            text-align: center;
-            margin-top: 15px;
-        }
+        .error-msg { color: #ef4444; text-align: center; margin-top: 15px; }
         
-        /* Dashboard */
         .dashboard { display: none; }
         .header {
             background: linear-gradient(135deg, #6366f1, #4f46e5);
@@ -80,11 +65,7 @@
             flex-wrap: wrap;
             gap: 20px;
         }
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+        .user-info { display: flex; align-items: center; gap: 15px; }
         .user-avatar {
             width: 50px;
             height: 50px;
@@ -222,11 +203,6 @@
             display: none;
             z-index: 2000;
         }
-        
-        @media (max-width: 768px) {
-            .stats { grid-template-columns: repeat(2, 1fr); }
-            th, td { font-size: 0.7rem; padding: 8px; }
-        }
     </style>
 </head>
 <body>
@@ -331,7 +307,7 @@
     </div>
 </div>
 
-<!-- Modals -->
+<!-- MODALS -->
 <div id="noteModal" class="modal">
     <div class="modal-content">
         <h3>Add Note</h3>
@@ -389,26 +365,62 @@ const ADMIN_PASS = "admin123";
 
 let isSuperAdmin = false;
 
-function showToast(msg) {
+function showToast(msg, type = 'success') {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
+    toast.style.borderLeftColor = type === 'error' ? '#ef4444' : '#22c55e';
     toast.style.display = 'block';
     setTimeout(() => toast.style.display = 'none', 3000);
 }
 
 async function api(table, options = {}) {
     let url = `${SUPABASE_URL}/rest/v1/${table}`;
-    if (options.filter) url += `?${options.filter.column}=eq.${options.filter.value}`;
-    if (options.order) url += `${url.includes('?') ? '&' : '?'}order=${options.order.column}.desc`;
     
-    const res = await fetch(url, {
-        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
-        method: options.method || 'GET',
-        body: options.data ? JSON.stringify(options.data) : undefined
-    });
-    if (!res.ok && res.status !== 204) throw new Error(await res.text());
-    if (res.status === 204) return [];
-    return res.json();
+    // Add filters
+    if (options.filter) {
+        url += `?${options.filter.column}=eq.${options.filter.value}`;
+    }
+    
+    // Add order
+    if (options.order) {
+        const separator = url.includes('?') ? '&' : '?';
+        url += `${separator}order=${options.order.column}.desc`;
+    }
+    
+    try {
+        const res = await fetch(url, {
+            headers: { 
+                "apikey": SUPABASE_KEY, 
+                "Authorization": `Bearer ${SUPABASE_KEY}`, 
+                "Content-Type": "application/json" 
+            },
+            method: options.method || 'GET',
+            body: options.data ? JSON.stringify(options.data) : undefined
+        });
+        
+        // For DELETE or empty responses
+        if (res.status === 204 || options.method === 'DELETE') {
+            return { success: true, data: [] };
+        }
+        
+        // Check if response has content
+        const text = await res.text();
+        
+        if (!text || text.trim() === '') {
+            return { success: true, data: [] };
+        }
+        
+        try {
+            const jsonData = JSON.parse(text);
+            return { success: true, data: jsonData };
+        } catch (e) {
+            return { success: true, data: [] };
+        }
+        
+    } catch (error) {
+        console.error('API Error:', error);
+        return { success: false, error: error.message };
+    }
 }
 
 function login() {
@@ -466,27 +478,27 @@ async function loadAllData() {
 }
 
 async function loadStats() {
-    const [students, notes, questions, books] = await Promise.all([
-        api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
-        api('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
-        api('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } }),
-        api('books', { filter: { column: 'teacher_id', value: TEACHER_ID } })
-    ]);
+    const students = await api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    const notes = await api('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    const questions = await api('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    const books = await api('books', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    
     document.getElementById('stats').innerHTML = `
-        <div class="stat-card"><h3>Students</h3><div class="value">${students?.length || 0}</div></div>
-        <div class="stat-card"><h3>Notes</h3><div class="value">${notes?.length || 0}</div></div>
-        <div class="stat-card"><h3>Questions</h3><div class="value">${questions?.length || 0}</div></div>
-        <div class="stat-card"><h3>Books</h3><div class="value">${books?.length || 0}</div></div>
+        <div class="stat-card"><h3>Students</h3><div class="value">${students.data?.length || 0}</div></div>
+        <div class="stat-card"><h3>Notes</h3><div class="value">${notes.data?.length || 0}</div></div>
+        <div class="stat-card"><h3>Questions</h3><div class="value">${questions.data?.length || 0}</div></div>
+        <div class="stat-card"><h3>Books</h3><div class="value">${books.data?.length || 0}</div></div>
     `;
     document.getElementById('systemStatus').innerHTML = `<p>✅ Bot running | 📊 Supabase connected | 👑 Role: ${isSuperAdmin ? 'Super Admin' : 'Teacher'}</p>`;
 }
 
 async function loadNotes() {
-    const notes = await api('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID }, order: { column: 'note_date' } });
-    if (notes?.length) {
+    const result = await api('daily_notes', { filter: { column: 'teacher_id', value: TEACHER_ID }, order: { column: 'note_date' } });
+    
+    if (result.data && result.data.length > 0) {
         document.getElementById('notesTable').innerHTML = `
             <thead><th>Date</th><th>Title</th><th>Actions</th></thead>
-            <tbody>${notes.map(n => `<tr><td>${n.note_date}</td><td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td><td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td></tr>`).join('')}</tbody>
+            <tbody>${result.data.map(n => `<tr><td>${n.note_date}</td><td><strong>${escapeHtml(n.title)}</strong><br><small>${escapeHtml(n.content.substring(0, 80))}...</small></td><td><button class="btn-small btn-danger" onclick="deleteNote('${n.id}')">Delete</button></td></tr>`).join('')}</tbody>
         `;
     } else {
         document.getElementById('notesTable').innerHTML = '<div class="empty">📭 No notes yet</div>';
@@ -494,11 +506,12 @@ async function loadNotes() {
 }
 
 async function loadQuestions() {
-    const questions = await api('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } });
-    if (questions?.length) {
+    const result = await api('questions', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    
+    if (result.data && result.data.length > 0) {
         document.getElementById('questionsTable').innerHTML = `
             <thead><th>Question</th><th>Answer</th><th>Actions</th></thead>
-            <tbody>${questions.map(q => `<td><td>${escapeHtml(q.question_text.substring(0, 60))}...</td><td>${escapeHtml(q.answer.substring(0, 40))}...</td><td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td></tr>`).join('')}</tbody>
+            <tbody>${result.data.map(q => `<tr><td>${escapeHtml(q.question_text.substring(0, 60))}...</td><td>${escapeHtml(q.answer.substring(0, 40))}...</td><td><button class="btn-small btn-danger" onclick="deleteQuestion('${q.id}')">Delete</button></td></tr>`).join('')}</tbody>
         `;
     } else {
         document.getElementById('questionsTable').innerHTML = '<div class="empty">❓ No questions yet</div>';
@@ -506,11 +519,12 @@ async function loadQuestions() {
 }
 
 async function loadBooks() {
-    const books = await api('books', { filter: { column: 'teacher_id', value: TEACHER_ID } });
-    if (books?.length) {
+    const result = await api('books', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    
+    if (result.data && result.data.length > 0) {
         document.getElementById('booksTable').innerHTML = `
             <thead><th>Title</th><th>Author</th><th>Actions</th></thead>
-            <tbody>${books.map(b => `<tr><td><strong>${escapeHtml(b.title)}</strong></td><td>${escapeHtml(b.author || '-')}</td><td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td></tr>`).join('')}</tbody>
+            <tbody>${result.data.map(b => `<tr><td><strong>${escapeHtml(b.title)}</strong></td><td>${escapeHtml(b.author || '-')}</td><td><button class="btn-small btn-danger" onclick="deleteBook('${b.id}')">Delete</button></td></tr>`).join('')}</tbody>
         `;
     } else {
         document.getElementById('booksTable').innerHTML = '<div class="empty">📚 No books yet</div>';
@@ -518,11 +532,12 @@ async function loadBooks() {
 }
 
 async function loadStudents() {
-    const students = await api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } });
-    if (students?.length) {
+    const result = await api('students', { filter: { column: 'teacher_id', value: TEACHER_ID } });
+    
+    if (result.data && result.data.length > 0) {
         document.getElementById('studentsTable').innerHTML = `
             <thead><th>Name</th><th>Username</th><th>Telegram ID</th><th>Joined</th></thead>
-            <tbody>${students.map(s => `<tr><td>${escapeHtml(s.first_name || 'Anonymous')}</td><td>@${escapeHtml(s.username || '-')}</td><td>${s.telegram_id}</td><td>${new Date(s.joined_at).toLocaleDateString()}</td></tr>`).join('')}</tbody>
+            <tbody>${result.data.map(s => `<td><td>${escapeHtml(s.first_name || 'Anonymous')}</td><td>@${escapeHtml(s.username || '-')}</td><td>${s.telegram_id}</td><td>${new Date(s.joined_at).toLocaleDateString()}</td></tr>`).join('')}</tbody>
         `;
     } else {
         document.getElementById('studentsTable').innerHTML = '<div class="empty">👨‍🎓 No students yet</div>';
@@ -530,19 +545,17 @@ async function loadStudents() {
 }
 
 async function loadTeachers() {
-    const teachers = await api('teachers', { order: { column: 'created_at' } });
-    if (teachers?.length) {
+    const result = await api('teachers', { order: { column: 'created_at' } });
+    
+    if (result.data && result.data.length > 0) {
         document.getElementById('teachersTable').innerHTML = `
             <thead><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></thead>
-            <tbody>${teachers.map(t => `<tr><td><strong>${escapeHtml(t.name)}</strong></td><td>${escapeHtml(t.email)}</td><td><span class="${t.role === 'super_admin' ? 'badge-super' : 'badge-teacher'}">${t.role || 'teacher'}</span></td><td><button class="btn-small btn-danger" onclick="deleteTeacher('${t.id}')">Delete</button></td></tr>`).join('')}</tbody>
+            <tbody>${result.data.map(t => `<tr><td><strong>${escapeHtml(t.name)}</strong></td><td>${escapeHtml(t.email)}</td><td><span class="${t.role === 'super_admin' ? 'badge-super' : 'badge-teacher'}">${t.role || 'teacher'}</span></td><td><button class="btn-small btn-danger" onclick="deleteTeacher('${t.id}')">Delete</button></td></tr>`).join('')}</tbody>
         `;
     }
 }
 
-// ============================================
-// SAVE FUNCTIONS WITH AUTO-CLEARING FIELDS
-// ============================================
-
+// SAVE FUNCTIONS
 async function saveNote() {
     const title = document.getElementById('noteTitle').value;
     const content = document.getElementById('noteContent').value;
@@ -553,27 +566,25 @@ async function saveNote() {
         return;
     }
     
-    try {
-        await api('daily_notes', { 
-            method: 'POST', 
-            data: { 
-                teacher_id: TEACHER_ID, 
-                title: title, 
-                content: content, 
-                note_date: noteDate 
-            } 
-        });
-        
-        // Clear form fields
+    const result = await api('daily_notes', { 
+        method: 'POST', 
+        data: { 
+            teacher_id: TEACHER_ID, 
+            title: title, 
+            content: content, 
+            note_date: noteDate 
+        } 
+    });
+    
+    if (result.success) {
         document.getElementById('noteTitle').value = '';
         document.getElementById('noteContent').value = '';
         document.getElementById('noteDate').value = new Date().toISOString().split('T')[0];
-        
         closeModal('noteModal');
         await loadAllData();
         showToast('Note added successfully!');
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
+    } else {
+        showToast('Error: ' + (result.error || 'Unknown error'), 'error');
     }
 }
 
@@ -586,25 +597,23 @@ async function saveQuestion() {
         return;
     }
     
-    try {
-        await api('questions', { 
-            method: 'POST', 
-            data: { 
-                teacher_id: TEACHER_ID, 
-                question_text: questionText, 
-                answer: answer 
-            } 
-        });
-        
-        // Clear form fields
+    const result = await api('questions', { 
+        method: 'POST', 
+        data: { 
+            teacher_id: TEACHER_ID, 
+            question_text: questionText, 
+            answer: answer 
+        } 
+    });
+    
+    if (result.success) {
         document.getElementById('questionText').value = '';
         document.getElementById('questionAnswer').value = '';
-        
         closeModal('questionModal');
         await loadAllData();
         showToast('Question added successfully!');
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
+    } else {
+        showToast('Error: ' + (result.error || 'Unknown error'), 'error');
     }
 }
 
@@ -617,25 +626,23 @@ async function saveBook() {
         return;
     }
     
-    try {
-        await api('books', { 
-            method: 'POST', 
-            data: { 
-                teacher_id: TEACHER_ID, 
-                title: title, 
-                author: author || null 
-            } 
-        });
-        
-        // Clear form fields
+    const result = await api('books', { 
+        method: 'POST', 
+        data: { 
+            teacher_id: TEACHER_ID, 
+            title: title, 
+            author: author || null 
+        } 
+    });
+    
+    if (result.success) {
         document.getElementById('bookTitle').value = '';
         document.getElementById('bookAuthor').value = '';
-        
         closeModal('bookModal');
         await loadAllData();
         showToast('Book added successfully!');
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
+    } else {
+        showToast('Error: ' + (result.error || 'Unknown error'), 'error');
     }
 }
 
@@ -650,36 +657,34 @@ async function createTeacher() {
         return;
     }
     
-    try {
-        const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
-        
-        await api('teachers', { 
-            method: 'POST', 
-            data: { 
-                id: newId, 
-                email: email, 
-                name: name, 
-                role: role, 
-                is_active: true,
-                password_hash: password
-            } 
-        });
-        
-        // Clear form fields
+    const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    
+    const result = await api('teachers', { 
+        method: 'POST', 
+        data: { 
+            id: newId, 
+            email: email, 
+            name: name, 
+            role: role, 
+            is_active: true,
+            password_hash: password
+        } 
+    });
+    
+    if (result.success) {
         document.getElementById('teacherName').value = '';
         document.getElementById('teacherEmail').value = '';
         document.getElementById('teacherPassword').value = '';
         document.getElementById('teacherRole').value = 'teacher';
-        
         closeModal('teacherModal');
         await loadTeachers();
         showToast(`Teacher ${name} created!`);
-    } catch (error) {
-        showToast('Error: ' + error.message, 'error');
+    } else {
+        showToast('Error: ' + (result.error || 'Unknown error'), 'error');
     }
 }
 
-// Delete Functions
+// DELETE FUNCTIONS
 async function deleteNote(id) { 
     if (confirm('Delete this note?')) { 
         await api(`daily_notes?id=eq.${id}`, { method: 'DELETE' }); 
@@ -711,7 +716,7 @@ async function deleteTeacher(id) {
     showToast('Teacher deleted');
 }
 
-// UI Functions
+// UI FUNCTIONS
 function showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(page).style.display = 'block';
